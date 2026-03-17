@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Silo">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
+<link rel="manifest" href="manifest.json">
+<title>Silo - Quản lý Chi tiêu</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--card:#334155;
+  --primary:#818cf8;--primary-dark:#6366f1;
+  --danger:#f87171;--success:#34d399;
+  --text:#f1f5f9;--text-dim:#94a3b8;
+  --radius:16px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:var(--safe-bottom)}
+
+/* ── Header ── */
+.header{padding:20px 20px 0;flex-shrink:0}
+.header h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--primary),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .subtitle{color:var(--text-dim);font-size:13px;margin-top:2px}
+
+/* ── Month Selector ── */
+.month-bar{display:flex;align-items:center;gap:12px;padding:16px 20px;flex-shrink:0}
+.month-bar button{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.month-bar button:active{background:var(--primary-dark)}
+.month-label{flex:1;text-align:center;font-size:16px;font-weight:600}
+
+/* ── Summary Cards ── */
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px 16px}
+.summary-card{background:var(--surface);border-radius:var(--radius);padding:16px}
+.summary-card .label{font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.summary-card .value{font-size:22px;font-weight:700}
+.summary-card.total .value{color:var(--danger)}
+.summary-card.count .value{color:var(--primary)}
+
+/* ── Scrollable Content ── */
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px 100px}
+
+/* ── Category Filter ── */
+.cat-filter{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none;-ms-overflow-style:none}
+.cat-filter::-webkit-scrollbar{display:none}
+.cat-chip{padding:8px 16px;border-radius:20px;background:var(--surface);color:var(--text-dim);font-size:13px;white-space:nowrap;border:none;cursor:pointer;transition:all .2s}
+.cat-chip.active{background:var(--primary);color:#fff}
+
+/* ── Expense List ── */
+.expense-list{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.expense-item{background:var(--surface);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;transition:transform .15s;position:relative;overflow:hidden}
+.expense-item:active{transform:scale(.98)}
+.expense-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.expense-info{flex:1;min-width:0}
+.expense-info .title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.expense-info .cat{font-size:12px;color:var(--text-dim);margin-top:2px}
+.expense-amount{font-size:16px;font-weight:700;color:var(--danger);white-space:nowrap}
+.expense-date{font-size:11px;color:var(--text-dim);text-align:right;margin-top:2px}
+.expense-right{text-align:right;flex-shrink:0}
+.expense-delete{position:absolute;right:0;top:0;bottom:0;width:0;background:var(--danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;transition:width .2s;overflow:hidden;cursor:pointer;border:none}
+.expense-item.swiped .expense-delete{width:70px}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-dim)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:14px}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:calc(24px + var(--safe-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--primary-dark),#a78bfa);color:#fff;border:none;font-size:28px;cursor:pointer;box-shadow:0 4px 24px rgba(99,102,241,.4);display:flex;align-items:center;justify-content:center;z-index:50;transition:transform .2s}
+.fab:active{transform:scale(.9)}
+
+/* ── Modal / Bottom Sheet ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + var(--safe-bottom));z-index:100;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);max-height:90vh;overflow-y:auto}
+.sheet.open{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;border-radius:2px;background:var(--card);margin:0 auto 20px}
+.sheet h2{font-size:20px;font-weight:700;margin-bottom:20px}
+
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select{width:100%;padding:14px 16px;border-radius:12px;border:2px solid var(--card);background:var(--bg);color:var(--text);font-size:16px;outline:none;transition:border-color .2s;-webkit-appearance:none}
+.form-group input:focus,.form-group select:focus{border-color:var(--primary)}
+.form-group input::placeholder{color:var(--text-dim)}
+
+.cat-grid{display:flex;flex-wrap:wrap;gap:8px}
+.cat-option{padding:8px 14px;border-radius:12px;background:var(--bg);border:2px solid var(--card);color:var(--text-dim);font-size:13px;cursor:pointer;transition:all .2s}
+.cat-option.selected{border-color:var(--primary);color:var(--primary);background:rgba(129,140,248,.1)}
+
+.btn-row{display:flex;gap:10px;margin-top:20px}
+.btn{flex:1;padding:14px;border-radius:12px;border:none;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-ghost{background:var(--card);color:var(--text)}
+
+/* ── Category Manager Sheet ── */
+.cat-manager-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--card)}
+.cat-manager-item:last-child{border-bottom:none}
+.cat-manager-emoji{font-size:24px}
+.cat-manager-name{flex:1;font-size:15px}
+.cat-manager-del{background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:4px 8px}
+.add-cat-row{display:flex;gap:8px;margin-top:12px}
+.add-cat-row input{flex:1;padding:12px;border-radius:12px;border:2px solid var(--card);background:var(--bg);color:var(--text);font-size:14px;outline:none}
+.add-cat-row input:focus{border-color:var(--primary)}
+.add-cat-row button{padding:12px 18px;border-radius:12px;background:var(--primary);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer}
+
+/* ── Animations ── */
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.expense-item{animation:slideUp .3s ease}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Silo</h1>
+  <div class="subtitle">Quản lý chi tiêu cá nhân</div>
+</div>
+
+<div class="month-bar">
+  <button id="prevMonth">&#8249;</button>
+  <div class="month-label" id="monthLabel"></div>
+  <button id="nextMonth">&#8250;</button>
+</div>
+
+<div class="summary">
+  <div class="summary-card total">
+    <div class="label">Tổng chi</div>
+    <div class="value" id="totalAmount">0 &#8363;</div>
+  </div>
+  <div class="summary-card count">
+    <div class="label">Giao dịch</div>
+    <div class="value" id="totalCount">0</div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="cat-filter" id="catFilter"></div>
+  <div class="expense-list" id="expenseList"></div>
+</div>
+
+<button class="fab" id="fabAdd">+</button>
+
+<!-- Add Expense Sheet -->
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h2 id="sheetTitle">Thêm chi tiêu</h2>
+  <div class="form-group">
+    <label>Tiêu đề</label>
+    <input type="text" id="inputTitle" placeholder="VD: Ăn sáng, mua phím..." autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label>Số tiền (VNĐ)</label>
+    <input type="number" id="inputAmount" placeholder="50000" inputmode="numeric">
+  </div>
+  <div class="form-group">
+    <label>Ngày</label>
+    <input type="date" id="inputDate">
+  </div>
+  <div class="form-group">
+    <label>Danh mục</label>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="btnCancel">Huỷ</button>
+    <button class="btn btn-primary" id="btnSave">Lưu</button>
+  </div>
+</div>
+
+<!-- Category Manager Sheet -->
+<div class="overlay" id="catOverlay"></div>
+<div class="sheet" id="catSheet">
+  <div class="sheet-handle"></div>
+  <h2>Quản lý danh mục</h2>
+  <div id="catManagerList"></div>
+  <div class="add-cat-row">
+    <input type="text" id="newCatEmoji" placeholder="🎯" maxlength="2" style="flex:0 0 60px;text-align:center">
+    <input type="text" id="newCatName" placeholder="Tên danh mục...">
+    <button id="btnAddCat">Thêm</button>
+  </div>
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn btn-ghost" id="btnCloseCat">Đóng</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'silo_expenses';
+const CAT_KEY = 'silo_categories';
+
+const DEFAULT_CATS = [
+  { id: 'food', name: 'Ăn uống', emoji: '🍜', color: '#f97316' },
+  { id: 'transport', name: 'Di chuyển', emoji: '🚗', color: '#3b82f6' },
+  { id: 'shopping', name: 'Mua sắm', emoji: '🛍️', color: '#ec4899' },
+  { id: 'bill', name: 'Hoá đơn', emoji: '📄', color: '#eab308' },
+  { id: 'health', name: 'Sức khoẻ', emoji: '💊', color: '#22c55e' },
+  { id: 'fun', name: 'Giải trí', emoji: '🎮', color: '#8b5cf6' },
+  { id: 'edu', name: 'Học tập', emoji: '📚', color: '#06b6d4' },
+  { id: 'other', name: 'Khác', emoji: '📌', color: '#64748b' }
+];
+
+let categories = JSON.parse(localStorage.getItem(CAT_KEY)) || [...DEFAULT_CATS];
+let expenses = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let selectedCatFilter = 'all';
+let editingId = null;
+
+const $ = id => document.getElementById(id);
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+}
+function saveCats() {
+  localStorage.setItem(CAT_KEY, JSON.stringify(categories));
+}
+
+function formatMoney(n) {
+  return Number(n).toLocaleString('vi-VN') + ' ₫';
+}
+
+const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+function renderMonthLabel() {
+  $('monthLabel').textContent = `${MONTH_NAMES[currentMonth]}, ${currentYear}`;
+}
+
+function getFiltered() {
+  return expenses.filter(e => {
+    const d = new Date(e.date);
+    const matchMonth = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    const matchCat = selectedCatFilter === 'all' || e.catId === selectedCatFilter;
+    return matchMonth && matchCat;
+  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function renderSummary(list) {
+  const total = list.reduce((s, e) => s + Number(e.amount), 0);
+  $('totalAmount').textContent = formatMoney(total);
+  $('totalCount').textContent = list.length;
+}
+
+function renderCatFilter() {
+  const el = $('catFilter');
+  let html = `<button class="cat-chip ${selectedCatFilter === 'all' ? 'active' : ''}" data-cat="all">Tất cả</button>`;
+  categories.forEach(c => {
+    html += `<button class="cat-chip ${selectedCatFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${c.emoji} ${c.name}</button>`;
+  });
+  html += `<button class="cat-chip" id="manageCatBtn" style="border:1px dashed var(--text-dim)">⚙️ Sửa</button>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll('.cat-chip[data-cat]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedCatFilter = btn.dataset.cat;
+      render();
+    });
+  });
+  const mgr = $('manageCatBtn');
+  if (mgr) mgr.addEventListener('click', openCatManager);
+}
+
+function renderList(list) {
+  const el = $('expenseList');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>Chưa có chi tiêu nào trong ${MONTH_NAMES[currentMonth]}</p></div>`;
+    return;
+  }
+  el.innerHTML = list.map(e => {
+    const cat = categories.find(c => c.id === e.catId) || { emoji: '📌', name: 'Khác', color: '#64748b' };
+    const d = new Date(e.date);
+    const day = d.getDate() + '/' + (d.getMonth() + 1);
+    return `
+      <div class="expense-item" data-id="${e.id}">
+        <div class="expense-icon" style="background:${cat.color}22;color:${cat.color}">${cat.emoji}</div>
+        <div class="expense-info">
+          <div class="title">${e.title}</div>
+          <div class="cat">${cat.name}</div>
+        </div>
+        <div class="expense-right">
+          <div class="expense-amount">-${formatMoney(e.amount)}</div>
+          <div class="expense-date">${day}</div>
+        </div>
+        <button class="expense-delete" onclick="deleteExpense('${e.id}')">🗑️</button>
+      </div>`;
+  }).join('');
+
+  setupSwipe();
+}
+
+function render() {
+  renderMonthLabel();
+  renderCatFilter();
+  const list = getFiltered();
+  renderSummary(list);
+  renderList(list);
+}
+
+/* ── Swipe to delete ── */
+function setupSwipe() {
+  document.querySelectorAll('.expense-item').forEach(item => {
+    let startX = 0, moved = false;
+    item.addEventListener('touchstart', e => { startX = e.touches[0].clientX; moved = false; });
+    item.addEventListener('touchmove', e => {
+      const dx = startX - e.touches[0].clientX;
+      if (dx > 40) { item.classList.add('swiped'); moved = true; }
+      else if (dx < -20) item.classList.remove('swiped');
+    });
+    item.addEventListener('click', e => {
+      if (moved) return;
+      if (e.target.closest('.expense-delete')) return;
+      editExpense(item.dataset.id);
+    });
+  });
+}
+
+function deleteExpense(id) {
+  expenses = expenses.filter(e => e.id !== id);
+  save();
+  render();
+}
+
+function editExpense(id) {
+  const e = expenses.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  $('sheetTitle').textContent = 'Sửa chi tiêu';
+  $('inputTitle').value = e.title;
+  $('inputAmount').value = e.amount;
+  $('inputDate').value = e.date;
+  renderCatGrid(e.catId);
+  openSheet();
+}
+
+/* ── Sheet (Add/Edit) ── */
+function openSheet() {
+  $('overlay').classList.add('open');
+  $('sheet').classList.add('open');
+}
+function closeSheet() {
+  $('overlay').classList.remove('open');
+  $('sheet').classList.remove('open');
+  editingId = null;
+  $('sheetTitle').textContent = 'Thêm chi tiêu';
+  $('inputTitle').value = '';
+  $('inputAmount').value = '';
+  $('inputDate').value = todayStr();
+  renderCatGrid();
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+let selectedCatId = categories[0]?.id || 'other';
+
+function renderCatGrid(activeId) {
+  selectedCatId = activeId || categories[0]?.id || 'other';
+  const el = $('catGrid');
+  el.innerHTML = categories.map(c =>
+    `<div class="cat-option ${c.id === selectedCatId ? 'selected' : ''}" data-id="${c.id}">${c.emoji} ${c.name}</div>`
+  ).join('');
+  el.querySelectorAll('.cat-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      selectedCatId = opt.dataset.id;
+      el.querySelectorAll('.cat-option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+    });
+  });
+}
+
+function handleSave() {
+  const title = $('inputTitle').value.trim();
+  const amount = Number($('inputAmount').value);
+  const date = $('inputDate').value;
+  if (!title) { $('inputTitle').focus(); return; }
+  if (!amount || amount <= 0) { $('inputAmount').focus(); return; }
+  if (!date) { $('inputDate').focus(); return; }
+
+  if (editingId) {
+    const idx = expenses.findIndex(e => e.id === editingId);
+    if (idx !== -1) {
+      expenses[idx] = { ...expenses[idx], title, amount, date, catId: selectedCatId };
+    }
+  } else {
+    expenses.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, amount, date, catId: selectedCatId });
+  }
+
+  save();
+  closeSheet();
+  const d = new Date(date);
+  currentMonth = d.getMonth();
+  currentYear = d.getFullYear();
+  render();
+}
+
+/* ── Category Manager ── */
+function openCatManager() {
+  $('catOverlay').classList.add('open');
+  $('catSheet').classList.add('open');
+  renderCatManager();
+}
+function closeCatManager() {
+  $('catOverlay').classList.remove('open');
+  $('catSheet').classList.remove('open');
+}
+function renderCatManager() {
+  $('catManagerList').innerHTML = categories.map(c => `
+    <div class="cat-manager-item">
+      <span class="cat-manager-emoji">${c.emoji}</span>
+      <span class="cat-manager-name">${c.name}</span>
+      <button class="cat-manager-del" onclick="deleteCat('${c.id}')">✕</button>
+    </div>
+  `).join('');
+}
+function deleteCat(id) {
+  if (categories.length <= 1) return;
+  categories = categories.filter(c => c.id !== id);
+  saveCats();
+  renderCatManager();
+  render();
+}
+function addCat() {
+  const emoji = $('newCatEmoji').value.trim() || '📌';
+  const name = $('newCatName').value.trim();
+  if (!name) return;
+  const id = name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now().toString(36);
+  const colors = ['#f97316','#3b82f6','#ec4899','#eab308','#22c55e','#8b5cf6','#06b6d4','#64748b'];
+  const color = colors[categories.length % colors.length];
+  categories.push({ id, name, emoji, color });
+  saveCats();
+  $('newCatEmoji').value = '';
+  $('newCatName').value = '';
+  renderCatManager();
+  render();
+}
+
+/* ── Events ── */
+$('fabAdd').addEventListener('click', () => { $('inputDate').value = todayStr(); renderCatGrid(); openSheet(); });
+$('btnCancel').addEventListener('click', closeSheet);
+$('btnSave').addEventListener('click', handleSave);
+$('overlay').addEventListener('click', closeSheet);
+$('catOverlay').addEventListener('click', closeCatManager);
+$('btnCloseCat').addEventListener('click', closeCatManager);
+$('btnAddCat').addEventListener('click', addCat);
+$('prevMonth').addEventListener('click', () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } selectedCatFilter = 'all'; render(); });
+$('nextMonth').addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } selectedCatFilter = 'all'; render(); });
+
+$('inputAmount').addEventListener('input', function() {
+  if (this.value < 0) this.value = 0;
+});
+
+render();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
+</body>
+</html>

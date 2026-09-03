@@ -72,6 +72,11 @@ function alphaAt(png, x, y) {
   return png.channels === 4 ? png.pixels[(y * png.width + x) * 4 + 3] : 255;
 }
 
+function rgbAt(png, x, y) {
+  const offset = (y * png.width + x) * png.channels;
+  return [...png.pixels.subarray(offset, offset + 3)];
+}
+
 test('SVG icons contain only the approved wallet artwork', () => {
   for (const [size, svg] of [[192, svg192], [512, svg512]]) {
     assert.match(svg, new RegExp(`width="${size}" height="${size}"`));
@@ -88,10 +93,12 @@ test('iPhone icon is a 180 by 180 PNG with transparent outer corners', async () 
   assert.deepEqual({ width: decoded.width, height: decoded.height }, { width: 180, height: 180 });
   for (const [x, y] of [[0, 0], [179, 0], [0, 179], [179, 179]]) assert.equal(alphaAt(decoded, x, y), 0);
   assert.ok(alphaAt(decoded, 33, 0) > 0 && alphaAt(decoded, 33, 0) < 255, 'rounded edge has fractional alpha');
+  assert.deepEqual(rgbAt(decoded, 33, 0), [11, 122, 83], 'edge color is not white-matted');
   assert.equal(alphaAt(decoded, 50, 50), 255);
 });
 
 test('HTML, manifest, and service worker reference the complete local icon set', () => {
+  assert.match(worker, /const CACHE_NAME = 'silo-v2-icon-wallet';/);
   assert.match(index, /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/);
   assert.match(index, /<link rel="icon" type="image\/svg\+xml" href="icons\/icon-192\.svg">/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), ['icons/icon-192.svg', 'icons/icon-512.svg']);

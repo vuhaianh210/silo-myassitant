@@ -63,7 +63,7 @@ git log -2 --oneline
 node --version
 ```
 
-Expected: clean status because `.superpowers/` and `.worktrees/` are ignored; the latest commit is `8260724 chore: ignore local workspaces`; Node.js is available.
+Expected: clean status because `.superpowers/` and `.worktrees/` are ignored; begin from the current Silo 2.0 `main` commit; Node.js is available.
 
 - [ ] **Step 2: Write the failing icon contract test**
 
@@ -136,6 +136,11 @@ function alphaAt(png, x, y) {
   return png.channels === 4 ? png.pixels[(y * png.width + x) * 4 + 3] : 255;
 }
 
+function rgbAt(png, x, y) {
+  const offset = (y * png.width + x) * png.channels;
+  return [...png.pixels.subarray(offset, offset + 3)];
+}
+
 test('SVG icons contain only the approved wallet artwork', () => {
   for (const [size, svg] of [[192, svg192], [512, svg512]]) {
     assert.match(svg, new RegExp(`width="${size}" height="${size}"`));
@@ -152,10 +157,12 @@ test('iPhone icon is a 180 by 180 PNG with transparent outer corners', async () 
   assert.deepEqual({ width: decoded.width, height: decoded.height }, { width: 180, height: 180 });
   for (const [x, y] of [[0, 0], [179, 0], [0, 179], [179, 179]]) assert.equal(alphaAt(decoded, x, y), 0);
   assert.ok(alphaAt(decoded, 33, 0) > 0 && alphaAt(decoded, 33, 0) < 255, 'rounded edge has fractional alpha');
+  assert.deepEqual(rgbAt(decoded, 33, 0), [11, 122, 83], 'edge color is not white-matted');
   assert.equal(alphaAt(decoded, 50, 50), 255);
 });
 
 test('HTML, manifest, and service worker reference the complete local icon set', () => {
+  assert.match(worker, /const CACHE_NAME = 'silo-v2-icon-wallet';/);
   assert.match(index, /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/);
   assert.match(index, /<link rel="icon" type="image\/svg\+xml" href="icons\/icon-192\.svg">/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), ['icons/icon-192.svg', 'icons/icon-512.svg']);
@@ -174,7 +181,7 @@ Run:
 node --test tests/icon-assets.test.js
 ```
 
-Expected: FAIL because `icons/apple-touch-icon.png` does not exist and the current SVG uses the old gradient letter artwork.
+Expected: FAIL before the feature commit because the current icon raster/cache contract does not satisfy the fractional-alpha and new-cache assertions.
 
 - [ ] **Step 4: Replace the 192 SVG with the approved geometry**
 
@@ -233,7 +240,7 @@ let height = image.height
 let bytesPerRow = width * 4
 let colorSpace = CGColorSpaceCreateDeviceRGB()
 var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
-let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGImageAlphaInfo.last.rawValue)!
 context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 let sourcePixels = pixels
 let green: (UInt8, UInt8, UInt8) = (11, 122, 83)
@@ -271,7 +278,7 @@ while head < queue.count {
 
 let data = Data(pixels)
 let provider = CGDataProvider(data: data as CFData)!
-let repaired = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
+let repaired = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
 let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil)!
 CGImageDestinationAddImage(destination, repaired, nil)
 guard CGImageDestinationFinalize(destination) else { fatalError("Could not write PNG") }
@@ -308,9 +315,10 @@ Keep the following SVG favicon line unchanged:
 
 - [ ] **Step 8: Version and cache the new icon**
 
-In the controlled Silo 2.0 `sw.js`, retain the existing `silo-v2` cache name, full `APP_SHELL`, message handler, and fetch strategy. Its app shell must include all three icon assets and activation must delete only older Silo caches:
+In the controlled Silo 2.0 `sw.js`, bump the cache name to `silo-v2-icon-wallet`, retain the full `APP_SHELL`, message handler, and fetch strategy. Its app shell must include all three icon assets and activation must delete only older Silo caches:
 
 ```js
+const CACHE_NAME = 'silo-v2-icon-wallet';
 const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './logic.js', './storage.js', './manifest.json', './icons/icon-192.svg', './icons/icon-512.svg', './icons/apple-touch-icon.png'];
 // …existing controlled handlers…
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('silo-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
@@ -328,7 +336,7 @@ git diff --check
 git status --short
 ```
 
-Expected: three tests PASS, `git diff --check` prints nothing, and status lists only the six planned icon-related files.
+Expected: three tests PASS, `git diff --check` prints nothing, and status lists only the icon assets/test/plan that differ from the current Silo 2.0 `main`; `index.html` and `sw.js` may be absent from the diff when their references are already present.
 
 - [ ] **Step 10: Render the 48-pixel inspection copy**
 
@@ -351,7 +359,7 @@ git diff --cached --check
 git commit -m "feat: add Silo wallet app icon"
 ```
 
-Expected: one focused commit containing six files. `.superpowers/` remains untracked and is not included.
+Expected: one focused icon commit containing the files that differ from current `main`. `.superpowers/` remains ignored and is not included.
 
 - [ ] **Step 12: Verify the iPhone Home Screen result**
 

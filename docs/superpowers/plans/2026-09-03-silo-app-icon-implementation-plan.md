@@ -4,9 +4,9 @@
 
 **Goal:** Replace Silo's letter-based icon with the approved flat wallet icon and wire a native 180×180 PNG into the iPhone Home Screen installation path.
 
-**Architecture:** Keep the icon source deterministic and dependency-free as two equivalent SVG files sharing one 180-unit geometry. Generate the iPhone PNG from the 512 SVG with macOS Quick Look, then remove only its connected exterior white background with a one-off Pillow alpha repair. The repair is a build-time command, not a runtime dependency. Verify artwork, dimensions, alpha, references, and offline caching with one Node built-in test file.
+**Architecture:** Keep the icon source deterministic and dependency-free as two equivalent SVG files sharing one 180-unit geometry. Generate the iPhone PNG from the 512 SVG with macOS Quick Look, then use a temporary Swift program with built-in CoreGraphics/ImageIO to remove only its connected exterior white background. No third-party runtime or build dependency is required. Verify artwork, dimensions, alpha, references, and offline caching with one Node built-in test file.
 
-**Tech Stack:** SVG, PNG, semantic HTML, Web App Manifest, Service Worker, macOS `qlmanage`/`sips`, Node.js built-in `node:test`.
+**Tech Stack:** SVG, PNG, semantic HTML, Web App Manifest, Service Worker, macOS `qlmanage`/`sips`, built-in Swift/CoreGraphics/ImageIO, Node.js built-in `node:test`.
 
 ## Global Constraints
 
@@ -17,6 +17,7 @@
 - Wallet body is `#F5FFF9`, pocket is `#C9F0DD`, and the secondary gold element is `#F6C453`.
 - Both SVG files use identical `viewBox="0 0 180 180"` geometry; only intrinsic dimensions differ.
 - The iPhone icon is exactly 180×180 PNG and is rasterized from the approved SVG.
+- The PNG alpha repair uses only built-in macOS Swift/CoreGraphics/ImageIO in a temporary `/tmp` script; no third-party runtime or build dependency is required.
 - Preserve relative GitHub Pages URLs and existing manifest SVG entries.
 - Increase the service-worker cache name and cache the PNG.
 - Do not modify application behavior, financial data, categories, or screen layout.
@@ -163,29 +164,60 @@ Run on the Mac:
 mkdir -p /tmp/silo-icon-build
 qlmanage -t -s 180 -o /tmp/silo-icon-build icons/icon-512.svg
 cp /tmp/silo-icon-build/icon-512.svg.png icons/apple-touch-icon.png
-python3 -c '
-from collections import deque
-from PIL import Image
-path = "icons/apple-touch-icon.png"
-image = Image.open(path).convert("RGBA")
-pixels = image.load()
-width, height = image.size
-queue = deque((x, y) for x, y in ((0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)) if all(channel >= 250 for channel in pixels[x, y][:3]))
-seen = set(queue)
-while queue:
-    x, y = queue.popleft()
-    r, g, b, _ = pixels[x, y]
-    pixels[x, y] = (r, g, b, 0)
-    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-        if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen and all(channel >= 250 for channel in pixels[nx, ny][:3]):
-            seen.add((nx, ny))
-            queue.append((nx, ny))
-image.save(path)
-'
+cat > /tmp/silo-icon-build/repair-alpha.swift <<'SWIFT'
+import CoreGraphics
+import Foundation
+import ImageIO
+import UniformTypeIdentifiers
+
+let input = URL(fileURLWithPath: CommandLine.arguments[1])
+let output = URL(fileURLWithPath: CommandLine.arguments[2])
+let source = CGImageSourceCreateWithURL(input as CFURL, nil)!
+let image = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+let width = image.width
+let height = image.height
+let bytesPerRow = width * 4
+let colorSpace = CGColorSpaceCreateDeviceRGB()
+var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+func isNearWhite(_ index: Int) -> Bool {
+  pixels[index] >= 250 && pixels[index + 1] >= 250 && pixels[index + 2] >= 250
+}
+
+var seen = [Bool](repeating: false, count: width * height)
+var queue: [(Int, Int)] = []
+for point in [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)] {
+  let index = (point.1 * width + point.0) * 4
+  if isNearWhite(index) { seen[point.1 * width + point.0] = true; queue.append(point) }
+}
+var head = 0
+while head < queue.count {
+  let (x, y) = queue[head]
+  head += 1
+  let index = (y * width + x) * 4
+  pixels[index] = 0; pixels[index + 1] = 0; pixels[index + 2] = 0; pixels[index + 3] = 0
+  for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] where nx >= 0 && nx < width && ny >= 0 && ny < height {
+    let pixel = ny * width + nx
+    let neighbor = pixel * 4
+    if !seen[pixel] && isNearWhite(neighbor) { seen[pixel] = true; queue.append((nx, ny)) }
+  }
+}
+
+let data = Data(pixels)
+let provider = CGDataProvider(data: data as CFData)!
+let repaired = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
+let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil)!
+CGImageDestinationAddImage(destination, repaired, nil)
+guard CGImageDestinationFinalize(destination) else { fatalError("Could not write PNG") }
+SWIFT
+swift /tmp/silo-icon-build/repair-alpha.swift icons/apple-touch-icon.png /tmp/silo-icon-build/apple-touch-icon-alpha.png
+cp /tmp/silo-icon-build/apple-touch-icon-alpha.png icons/apple-touch-icon.png
 sips -g pixelWidth -g pixelHeight icons/apple-touch-icon.png
 ```
 
-Quick Look flattens transparent SVG corners to white. The one-off flood fill begins only at the four raster corners, so the disconnected white wallet body remains opaque. Do not commit a helper script or add Pillow as an application dependency.
+Quick Look flattens transparent SVG corners to white. The temporary Swift flood fill begins only at the four raster corners, so the disconnected white wallet body remains opaque. Do not commit the helper script. Swift, CoreGraphics, and ImageIO are built into macOS; no third-party runtime or build dependency is required.
 
 Expected final output includes, with the automated icon test confirming alpha 0 at all four corners and alpha 255 within the wallet body:
 

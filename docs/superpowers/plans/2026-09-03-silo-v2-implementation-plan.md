@@ -26,6 +26,7 @@
 - Do not interpolate owner-entered values into `innerHTML`; use DOM APIs and `textContent`.
 - Minimum interactive target is 44 by 44 CSS pixels.
 - Theme options are `system`, `light`, and `dark`; `system` is default.
+- Preserve the approved wallet artwork and `icons/apple-touch-icon.png` defined by `docs/superpowers/specs/2026-09-03-silo-app-icon-design.md`.
 - `Tiết kiệm` and `Đầu tư` are expense categories and reduce the current period's remaining amount.
 - All tasks follow red-green-refactor, run the complete test suite before commit, and leave the app usable at task boundaries.
 
@@ -41,6 +42,7 @@
 | `index.html` | Replace | Semantic PWA shell, dialogs/sheets, forms, live regions, and module entry point. |
 | `sw.js` | Replace | Versioned application-shell cache, navigation fallback, and controlled activation. |
 | `manifest.json` | Modify | Light-first install colors and stable relative start URL. |
+| `icons/apple-touch-icon.png` | Preserve | Approved 180×180 iPhone Home Screen icon produced by the icon implementation plan. |
 | `tests/logic.test.js` | Create | Pure calculation and amount-entry tests. |
 | `tests/storage.test.js` | Create | Validation, migration, malformed data, and transactional deletion tests. |
 | `tests/static.test.js` | Create | Static security, accessibility, and PWA wiring checks. |
@@ -854,7 +856,7 @@ The replacement must contain these exact high-level regions and IDs; keep all la
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Silo">
   <meta name="theme-color" id="themeColor" content="#F4F7F5">
-  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
@@ -1865,6 +1867,7 @@ const APP_SHELL = [
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg',
+  './icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', event => {
@@ -2318,4 +2321,5 @@ Expected: GitHub accepts the commits. Wait for GitHub Pages deployment, then ope
 - User text is rendered safely without HTML interpolation.
 - Dialogs, focus, errors, live feedback, large text, safe areas, and touch targets meet the specification.
 - Offline launch and controlled updates work without discarding unsaved form input.
+- The approved wallet icon is used for iPhone Home Screen installation and remains available offline.
 - The repository is clean, documentation is complete, and no push occurs without explicit approval.

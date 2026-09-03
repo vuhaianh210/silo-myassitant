@@ -164,9 +164,11 @@ Run on the Mac:
 mkdir -p /tmp/silo-icon-build
 qlmanage -t -s 180 -o /tmp/silo-icon-build icons/icon-512.svg
 cp /tmp/silo-icon-build/icon-512.svg.png icons/apple-touch-icon.png
-apply_patch <<'PATCH'
-*** Begin Patch
-*** Add File: /tmp/silo-icon-build/repair-alpha.swift
+```
+
+Dùng công cụ chỉnh sửa apply_patch (không phải lệnh shell) để tạo file tạm `/tmp/silo-icon-build/repair-alpha.swift` với nội dung chính xác sau:
+
+```swift
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -213,8 +215,9 @@ let repaired = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPe
 let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil)!
 CGImageDestinationAddImage(destination, repaired, nil)
 guard CGImageDestinationFinalize(destination) else { fatalError("Could not write PNG") }
-*** End Patch
-PATCH
+```
+
+```bash
 swift /tmp/silo-icon-build/repair-alpha.swift icons/apple-touch-icon.png /tmp/silo-icon-build/apple-touch-icon-alpha.png
 cp /tmp/silo-icon-build/apple-touch-icon-alpha.png icons/apple-touch-icon.png
 sips -g pixelWidth -g pixelHeight icons/apple-touch-icon.png

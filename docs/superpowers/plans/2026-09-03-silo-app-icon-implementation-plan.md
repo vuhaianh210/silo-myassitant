@@ -4,7 +4,7 @@
 
 **Goal:** Replace Silo's letter-based icon with the approved flat wallet icon and wire a native 180×180 PNG into the iPhone Home Screen installation path.
 
-**Architecture:** Keep the icon source deterministic and dependency-free as two equivalent SVG files sharing one 180-unit geometry. Generate the iPhone PNG from the 512 SVG with macOS Quick Look, then verify artwork, dimensions, references, and offline caching with one Node built-in test file.
+**Architecture:** Keep the icon source deterministic and dependency-free as two equivalent SVG files sharing one 180-unit geometry. Generate the iPhone PNG from the 512 SVG with macOS Quick Look, then remove only its connected exterior white background with a one-off Pillow alpha repair. The repair is a build-time command, not a runtime dependency. Verify artwork, dimensions, alpha, references, and offline caching with one Node built-in test file.
 
 **Tech Stack:** SVG, PNG, semantic HTML, Web App Manifest, Service Worker, macOS `qlmanage`/`sips`, Node.js built-in `node:test`.
 
@@ -163,10 +163,31 @@ Run on the Mac:
 mkdir -p /tmp/silo-icon-build
 qlmanage -t -s 180 -o /tmp/silo-icon-build icons/icon-512.svg
 cp /tmp/silo-icon-build/icon-512.svg.png icons/apple-touch-icon.png
+python3 -c '
+from collections import deque
+from PIL import Image
+path = "icons/apple-touch-icon.png"
+image = Image.open(path).convert("RGBA")
+pixels = image.load()
+width, height = image.size
+queue = deque((x, y) for x, y in ((0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)) if all(channel >= 250 for channel in pixels[x, y][:3]))
+seen = set(queue)
+while queue:
+    x, y = queue.popleft()
+    r, g, b, _ = pixels[x, y]
+    pixels[x, y] = (r, g, b, 0)
+    for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+        if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen and all(channel >= 250 for channel in pixels[nx, ny][:3]):
+            seen.add((nx, ny))
+            queue.append((nx, ny))
+image.save(path)
+'
 sips -g pixelWidth -g pixelHeight icons/apple-touch-icon.png
 ```
 
-Expected final output includes:
+Quick Look flattens transparent SVG corners to white. The one-off flood fill begins only at the four raster corners, so the disconnected white wallet body remains opaque. Do not commit a helper script or add Pillow as an application dependency.
+
+Expected final output includes, with the automated icon test confirming alpha 0 at all four corners and alpha 255 within the wallet body:
 
 ```text
 pixelWidth: 180

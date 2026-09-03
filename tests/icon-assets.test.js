@@ -87,6 +87,7 @@ test('iPhone icon is a 180 by 180 PNG with transparent outer corners', async () 
   const decoded = decodePng(png);
   assert.deepEqual({ width: decoded.width, height: decoded.height }, { width: 180, height: 180 });
   for (const [x, y] of [[0, 0], [179, 0], [0, 179], [179, 179]]) assert.equal(alphaAt(decoded, x, y), 0);
+  assert.ok(alphaAt(decoded, 33, 0) > 0 && alphaAt(decoded, 33, 0) < 255, 'rounded edge has fractional alpha');
   assert.equal(alphaAt(decoded, 50, 50), 255);
 });
 

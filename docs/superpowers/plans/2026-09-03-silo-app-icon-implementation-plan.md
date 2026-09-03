@@ -62,7 +62,7 @@ git log -2 --oneline
 node --version
 ```
 
-Expected: only `.superpowers/` may be untracked from the approved visual-companion session; the latest commit is `83c721b docs: define Silo app icon`; Node.js is available. Do not stage `.superpowers/`.
+Expected: clean status because `.superpowers/` and `.worktrees/` are ignored; the latest commit is `8260724 chore: ignore local workspaces`; Node.js is available.
 
 - [ ] **Step 2: Write the failing icon contract test**
 
@@ -215,7 +215,7 @@ git diff --check
 git status --short
 ```
 
-Expected: three tests PASS, `git diff --check` prints nothing, and status lists only the six planned icon-related files plus the untracked `.superpowers/` session directory.
+Expected: three tests PASS, `git diff --check` prints nothing, and status lists only the six planned icon-related files.
 
 - [ ] **Step 10: Render the 48-pixel inspection copy**
 

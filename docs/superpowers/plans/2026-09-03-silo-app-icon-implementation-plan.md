@@ -27,11 +27,11 @@
 
 | File | Action | Responsibility |
 |---|---|---|
-| `icons/icon-192.svg` | Replace | 192×192 PWA icon using approved wallet geometry. |
-| `icons/icon-512.svg` | Replace | 512×512 PWA icon using identical wallet geometry. |
-| `icons/apple-touch-icon.png` | Create | 180×180 iPhone Home Screen icon rasterized from SVG. |
-| `index.html` | Modify | Point `apple-touch-icon` to the PNG while retaining SVG favicon. |
-| `sw.js` | Modify | Cache the PNG and force installed clients to discover the asset update. |
+| `icons/icon-192.svg` | Modify | Replace the current Silo 2.0 icon artwork with approved wallet geometry. |
+| `icons/icon-512.svg` | Modify | Replace the current Silo 2.0 icon artwork with identical wallet geometry. |
+| `icons/apple-touch-icon.png` | Modify | Replace the current 180×180 Home Screen raster with the corrected alpha-preserving render. |
+| `index.html` | Verify | Keep the current Silo 2.0 PNG Apple icon reference and SVG favicon unchanged. |
+| `sw.js:1` | Modify | Bump the current Silo 2.0 cache name while preserving its full worker. |
 | `tests/icon-assets.test.js` | Create | Verify artwork contract, geometry parity, dimensions, references, and cache inclusion. |
 
 ---
@@ -43,8 +43,8 @@
 - Create: `tests/icon-assets.test.js`
 - Replace: `icons/icon-192.svg`
 - Replace: `icons/icon-512.svg`
-- Create: `icons/apple-touch-icon.png`
-- Modify: `index.html:9`
+- Modify: `icons/apple-touch-icon.png`
+- Verify: `index.html:5`
 - Modify: `sw.js:1-8`
 
 **Interfaces:**
@@ -299,9 +299,9 @@ pixelWidth: 180
 pixelHeight: 180
 ```
 
-- [ ] **Step 7: Point iPhone installation to the PNG**
+- [ ] **Step 7: Verify iPhone installation already points to the PNG**
 
-In `index.html`, replace the existing Apple icon line with exactly:
+On the current Silo 2.0 `main`, verify the existing Apple icon line is exactly:
 
 ```html
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -336,7 +336,7 @@ git diff --check
 git status --short
 ```
 
-Expected: three tests PASS, `git diff --check` prints nothing, and status lists only the icon assets/test/plan that differ from the current Silo 2.0 `main`; `index.html` and `sw.js` may be absent from the diff when their references are already present.
+Expected: three tests PASS, `git diff --check` prints nothing, and status lists the three icon assets, `sw.js:1`, the test, and the plan; `index.html` is unchanged because the current Silo 2.0 reference is already correct.
 
 - [ ] **Step 10: Render the 48-pixel inspection copy**
 

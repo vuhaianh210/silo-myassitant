@@ -1,11 +1,12 @@
 {
   "name": "Silo - Quản lý Chi tiêu",
   "short_name": "Silo",
-  "description": "Ứng dụng ghi chép chi tiêu cá nhân đơn giản",
-  "start_url": "./index.html",
+  "description": "Theo dõi thu nhập và chi tiêu theo kỳ, lưu cục bộ trên thiết bị",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
+  "background_color": "#F4F7F5",
+  "theme_color": "#0B7A53",
   "orientation": "portrait",
   "icons": [
     {

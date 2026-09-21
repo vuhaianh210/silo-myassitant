@@ -67,6 +67,13 @@ test('application ships no third-party runtime or analytics endpoint', () => {
   assert.doesNotMatch(index, /https?:\/\//); assert.doesNotMatch(appSource, /fetch\(|XMLHttpRequest|sendBeacon|analytics/i);
 });
 
+test('expenses before the anchor stay reachable and their styles exist', () => {
+  assert.match(appSource, /function expenseRow\s*\(/);
+  assert.match(appSource, /expensesBeforeAnchor\(state\.expenses, state\.anchor/);
+  assert.match(appSource, /'before-anchor'/);
+  assert.match(styles, /\.before-anchor\{/);
+});
+
 test('period settings expose an end day, an anchor and a live preview', () => {
   assert.match(index, /id="cycleEndDay"[^>]*inputmode="numeric"/);
   assert.match(index, /id="periodSettingsForm"[^>]*novalidate/);

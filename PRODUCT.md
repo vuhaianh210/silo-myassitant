@@ -28,12 +28,15 @@ Silo is a deliberately small, local-first personal spending tool: no bank connec
 - Used primarily one-handed immediately after a purchase.
 - Works offline after installation.
 - Each spending period has independently entered income and starts fresh; unused money does not roll over.
-- The owner chooses the recurring day of month on which a spending period begins.
+- The owner chooses the recurring day of month on which a spending period ends, and optionally the
+  date on which the first period begins. Periods run contiguously; the start day is not recurring.
 
 ## Capabilities and Constraints
 
 - The owner manually enters income for each spending period.
-- The owner selects a recurring period-start day from 1 through 31.
+- The owner selects a recurring period-end day from 1 through 31, and optionally the date the first
+  period starts. Expenses dated before that anchor are listed under `Trước kỳ đầu` so they stay
+  editable.
 - The owner manually creates, edits, and deletes expenses.
 - Each expense has a title, positive VND amount, date, and category.
 - The app shows period income, spent amount, remaining amount, percentage used, and category totals.

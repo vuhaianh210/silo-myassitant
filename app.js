@@ -37,11 +37,46 @@ function renderCategoryGrid(selected = $('#categoryGrid').dataset.selected || st
   const grid = $('#categoryGrid'); grid.replaceChildren(); grid.dataset.selected = selected;
   state.categories.forEach(category => { const button = makeButton(`${category.emoji} ${category.name}`, 'category-option'); button.setAttribute('aria-pressed', String(selected === category.id)); button.style.setProperty('--category-color', category.color); button.addEventListener('click', () => renderCategoryGrid(category.id)); grid.append(button); });
 }
+function expenseRow(expense) {
+  const category = state.categories.find(item => item.id === expense.catId) ?? state.categories.find(item => item.id === 'other');
+  const row = document.createElement('article'); row.className = 'expense-row';
+  const icon = document.createElement('span'); icon.className = 'expense-icon'; icon.textContent = category?.emoji ?? '📌';
+  const copy = document.createElement('div'); copy.className = 'expense-copy';
+  const title = document.createElement('div'); title.className = 'expense-title'; title.textContent = expense.title;
+  const cat = document.createElement('div'); cat.className = 'expense-category'; cat.textContent = category?.name ?? 'Khác';
+  copy.append(title, cat);
+  const amount = document.createElement('strong'); amount.className = 'expense-amount'; amount.textContent = formatVnd(expense.amount);
+  const track = document.createElement('div'); track.className = 'expense-track'; track.append(icon, copy, amount); row.append(track);
+  const actions = document.createElement('div'); actions.className = 'expense-actions';
+  const edit = makeButton('Sửa', 'expense-edit'); edit.setAttribute('aria-label', `Sửa ${expense.title}`); edit.addEventListener('click', () => openExpenseEditor(expense.id));
+  const remove = makeButton('Xóa', 'expense-delete'); remove.setAttribute('aria-label', `Xóa ${expense.title}`); remove.addEventListener('click', () => deleteExpense(expense.id));
+  actions.append(edit, remove); row.append(actions);
+  return row;
+}
 function renderExpenseList() {
   closeSwipe(); const list = $('#expenseList'); list.replaceChildren(); const expenses = selectedExpenses();
-  if (!expenses.length) { const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = state.selectedCategoryId === 'all' ? 'Chưa có khoản chi trong kỳ này.' : 'Danh mục này chưa có khoản chi.'; list.append(empty); return; }
-  const groups = new Map(); expenses.forEach(expense => { if (!groups.has(expense.date)) groups.set(expense.date, []); groups.get(expense.date).push(expense); });
-  for (const [date, items] of groups) { const section = document.createElement('section'); section.className = 'date-group'; const heading = document.createElement('h3'); heading.className = 'date-heading'; heading.textContent = date.split('-').reverse().join('/'); section.append(heading); items.forEach(expense => { const category = state.categories.find(item => item.id === expense.catId) ?? state.categories.find(item => item.id === 'other'); const row = document.createElement('article'); row.className = 'expense-row'; const icon = document.createElement('span'); icon.className = 'expense-icon'; icon.textContent = category?.emoji ?? '📌'; const copy = document.createElement('div'); copy.className = 'expense-copy'; const title = document.createElement('div'); title.className = 'expense-title'; title.textContent = expense.title; const cat = document.createElement('div'); cat.className = 'expense-category'; cat.textContent = category?.name ?? 'Khác'; copy.append(title, cat); const amount = document.createElement('strong'); amount.className = 'expense-amount'; amount.textContent = formatVnd(expense.amount); const track = document.createElement('div'); track.className = 'expense-track'; track.append(icon, copy, amount); row.append(track); const actions = document.createElement('div'); actions.className = 'expense-actions'; const edit = makeButton('Sửa', 'expense-edit'); edit.setAttribute('aria-label', `Sửa ${expense.title}`); edit.addEventListener('click', () => openExpenseEditor(expense.id)); const remove = makeButton('Xóa', 'expense-delete'); remove.setAttribute('aria-label', `Xóa ${expense.title}`); remove.addEventListener('click', () => deleteExpense(expense.id)); actions.append(edit, remove); row.append(actions); section.append(row); }); list.append(section); }
+  if (!expenses.length) {
+    const empty = document.createElement('p'); empty.className = 'empty-state';
+    empty.textContent = state.selectedCategoryId === 'all' ? 'Chưa có khoản chi trong kỳ này.' : 'Danh mục này chưa có khoản chi.';
+    list.append(empty);
+  } else {
+    const groups = new Map(); expenses.forEach(expense => { if (!groups.has(expense.date)) groups.set(expense.date, []); groups.get(expense.date).push(expense); });
+    for (const [date, items] of groups) {
+      const section = document.createElement('section'); section.className = 'date-group';
+      const heading = document.createElement('h3'); heading.className = 'date-heading'; heading.textContent = date.split('-').reverse().join('/');
+      section.append(heading);
+      items.forEach(expense => section.append(expenseRow(expense)));
+      list.append(section);
+    }
+  }
+  const before = expensesBeforeAnchor(state.expenses, state.anchor, state.selectedCategoryId);
+  if (before.length) {
+    const details = document.createElement('details'); details.className = 'before-anchor';
+    const summary = document.createElement('summary'); summary.textContent = `Trước kỳ đầu (${before.length})`;
+    details.append(summary);
+    before.forEach(expense => details.append(expenseRow(expense)));
+    list.append(details);
+  }
 }
 
 function updatePeriodPreview() {

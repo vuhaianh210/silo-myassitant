@@ -160,7 +160,7 @@ category filter and counts globally.
   11/10–10/11. This is arithmetic, not a design preference, and the live preview shows it.
 * **Legacy `startDay` 29, 30 or 31 shifts a boundary by one day** in some months (measured above:
   4, 4 and 20 months out of 24). Expenses regroup; the income amount stays with its period.
-* **Open point for the owner's review:** the anchor is an optional date and defaults to *unset*,
-  which leaves existing data and behaviour untouched. A friendlier alternative is to default it to
-  the start of the period holding the earliest stored expense. This spec takes the conservative
-  option unless the owner prefers otherwise.
+* **The anchor defaults to unset** (owner-confirmed 2026-09-21). Existing data and behaviour are
+  therefore untouched until the owner deliberately sets an anchor; the alternative of defaulting it
+  to the period holding the earliest stored expense was rejected as the app writing a value into
+  the owner's data on its own.

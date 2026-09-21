@@ -55,8 +55,11 @@ function recoverPendingTransaction(storage) {
   try { pending = JSON.parse(raw); } catch { return { ok: false, code: 'MALFORMED_DATA', key: KEYS.transaction }; }
   if (pending && pending.type === 'migrate-cycle') {
     if (!Object.hasOwn(pending, 'incomesBefore')) return { ok: false, code: 'MALFORMED_DATA', key: KEYS.transaction };
-    try { restoreRaw(storage, KEYS.incomes, pending.incomesBefore); storage.removeItem(KEYS.endDay); storage.removeItem(KEYS.transaction); return { ok: true }; }
-    catch (cause) { throw storageError(cause); }
+    try {
+      if (storage.getItem(LEGACY_START_DAY) !== null) { restoreRaw(storage, KEYS.incomes, pending.incomesBefore); storage.removeItem(KEYS.endDay); }
+      storage.removeItem(KEYS.transaction);
+      return { ok: true };
+    } catch (cause) { throw storageError(cause); }
   }
   if (!pending || pending.type !== 'delete-category' || !Object.hasOwn(pending, 'expensesBefore') || !Object.hasOwn(pending, 'categoriesBefore')) return { ok: false, code: 'MALFORMED_DATA', key: KEYS.transaction };
   try { restoreRaw(storage, KEYS.expenses, pending.expensesBefore); restoreRaw(storage, KEYS.categories, pending.categoriesBefore); storage.removeItem(KEYS.transaction); return { ok: true }; }
@@ -74,7 +77,10 @@ export function createRepository(storage) {
     const legacy = storage.getItem(LEGACY_START_DAY);
     if (legacy === null) return { ok: true, incomes };
     const startDay = Number(legacy);
-    if (!Number.isInteger(startDay) || startDay < 1 || startDay > MAX_DAY) { storage.removeItem(LEGACY_START_DAY); return { ok: true, incomes }; }
+    if (!Number.isInteger(startDay) || startDay < 1 || startDay > MAX_DAY) {
+      try { storage.removeItem(LEGACY_START_DAY); } catch { /* nothing to undo; the value is invalid and will be re-dropped next load */ }
+      return { ok: true, incomes };
+    }
     const endDay = startDay === 1 ? MAX_DAY : startDay - 1;
     let next = incomes;
     try {
@@ -84,8 +90,8 @@ export function createRepository(storage) {
         write(KEYS.incomes, next);
       }
       write(KEYS.endDay, String(endDay));
-      storage.removeItem(KEYS.transaction);
       storage.removeItem(LEGACY_START_DAY);
+      storage.removeItem(KEYS.transaction);
     } catch (cause) {
       return { ok: false, code: 'STORAGE_WRITE_FAILED', key: KEYS.transaction };
     }

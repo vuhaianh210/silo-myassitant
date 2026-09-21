@@ -136,6 +136,17 @@ test('end day and anchor persist and round-trip', () => {
   assert.throws(() => repository.saveAnchor('21/09/2026'), /Invalid anchor/);
 });
 
+test('a malformed anchor falls back to null and saveAnchor clears it', () => {
+  const storage = memoryStorage({ silo_cycle_anchor: '21/09/2026' });
+  const repository = createRepository(storage);
+  assert.equal(repository.load().state.anchor, null);
+  repository.saveAnchor('2026-09-21');
+  assert.equal(createRepository(storage).load().state.anchor, '2026-09-21');
+  repository.saveAnchor(null);
+  assert.equal(storage.getItem('silo_cycle_anchor'), null);
+  assert.equal(createRepository(storage).load().state.anchor, null);
+});
+
 test('period income persists as a positive safe integer', () => {
   const storage = memoryStorage();
   const repository = createRepository(storage);

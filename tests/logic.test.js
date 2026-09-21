@@ -160,6 +160,23 @@ test('expense filtering does not mutate the source array', () => {
   assert.deepEqual(source, before);
 });
 
+test('the end day that replaces a legacy start day reproduces its ranges', () => {
+  // Expectations are the pre-change behaviour of periodBounds(legacyKey, startDay), frozen from
+  // logic.js at commit a0fd59b: legacy key M stays key M only for start day 1; for start day S >= 2
+  // the period moves to the key of the month it ends in, and shifts exactly one month.
+  const rows = [
+    { startDay: 1, endDay: 31, newKey: '2026-09', startDate: '2026-09-01', endDate: '2026-09-30' },
+    { startDay: 25, endDay: 24, newKey: '2026-10', startDate: '2026-09-25', endDate: '2026-10-24' },
+    { startDay: 28, endDay: 27, newKey: '2026-10', startDate: '2026-09-28', endDate: '2026-10-27' },
+    { startDay: 25, endDay: 24, newKey: '2027-01', startDate: '2026-12-25', endDate: '2027-01-24' },
+  ];
+  for (const row of rows) {
+    const bounds = periodBounds(row.newKey, row.endDay);
+    assert.equal(bounds.startDate, row.startDate, `start day ${row.startDay} → end day ${row.endDay}`);
+    assert.equal(bounds.endDate, row.endDate, `start day ${row.startDay} → end day ${row.endDay}`);
+  }
+});
+
 test('savings and investment are ordinary expenses in totals', () => {
   const expenses = [{ amount: 1_000_000, catId: 'saving' }, { amount: 500_000, catId: 'investment' }];
   assert.equal(calculatePeriodSummary(5_000_000, expenses).remaining, 3_500_000);

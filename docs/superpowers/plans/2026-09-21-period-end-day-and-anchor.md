@@ -346,13 +346,16 @@ const LEGACY_START_DAY = 'silo_cycle_start_day';
 const MAX_DAY = 31;
 ```
 
-In `recoverPendingTransaction`, handle the cycle record before the existing `delete-category` validation. It undoes a half-finished migration: restore the incomes, drop the end day (which did not exist before the migration), clear the record. The legacy key stays, so the next load retries from a clean state:
+In `recoverPendingTransaction`, handle the cycle record before the existing `delete-category` validation. It undoes a half-finished migration, but only while the migration is uncommitted (the legacy key is the commit point): restore the incomes and drop the end day (which did not exist before the migration) only when `LEGACY_START_DAY` is still present, then clear the record. If the legacy key is already gone the migration committed, so only the stale record is removed. The legacy key staying put when the switch is uncommitted is what makes the next load retry from a clean state:
 
 ```javascript
   if (pending && pending.type === 'migrate-cycle') {
     if (!Object.hasOwn(pending, 'incomesBefore')) return { ok: false, code: 'MALFORMED_DATA', key: KEYS.transaction };
-    try { restoreRaw(storage, KEYS.incomes, pending.incomesBefore); storage.removeItem(KEYS.endDay); storage.removeItem(KEYS.transaction); return { ok: true }; }
-    catch (cause) { throw storageError(cause); }
+    try {
+      if (storage.getItem(LEGACY_START_DAY) !== null) { restoreRaw(storage, KEYS.incomes, pending.incomesBefore); storage.removeItem(KEYS.endDay); }
+      storage.removeItem(KEYS.transaction);
+      return { ok: true };
+    } catch (cause) { throw storageError(cause); }
   }
 ```
 
@@ -363,7 +366,10 @@ Add the migration inside `createRepository`, next to `requireLoaded`:
     const legacy = storage.getItem(LEGACY_START_DAY);
     if (legacy === null) return { ok: true, incomes };
     const startDay = Number(legacy);
-    if (!Number.isInteger(startDay) || startDay < 1 || startDay > MAX_DAY) { storage.removeItem(LEGACY_START_DAY); return { ok: true, incomes }; }
+    if (!Number.isInteger(startDay) || startDay < 1 || startDay > MAX_DAY) {
+      try { storage.removeItem(LEGACY_START_DAY); } catch { /* nothing to undo; the value is invalid and will be re-dropped next load */ }
+      return { ok: true, incomes };
+    }
     const endDay = startDay === 1 ? MAX_DAY : startDay - 1;
     let next = incomes;
     try {
@@ -373,8 +379,8 @@ Add the migration inside `createRepository`, next to `requireLoaded`:
         write(KEYS.incomes, next);
       }
       write(KEYS.endDay, String(endDay));
-      storage.removeItem(KEYS.transaction);
       storage.removeItem(LEGACY_START_DAY);
+      storage.removeItem(KEYS.transaction);
     } catch (cause) {
       return { ok: false, code: 'STORAGE_WRITE_FAILED', key: KEYS.transaction };
     }
@@ -382,7 +388,7 @@ Add the migration inside `createRepository`, next to `requireLoaded`:
   }
 ```
 
-The pending record is what makes this idempotent: incomes are written before the end day, so a crash between the two writes would otherwise shift them twice on the next load. The legacy key is deleted only after every write succeeded.
+The pending record plus the removal order is what makes this idempotent. The legacy key is the commit point: it is removed immediately after the end-day write and before the pending record is cleared, so every interruption window is safe. A crash before the legacy removal leaves the pending record and the legacy key, so the next load undoes the shift and retries; a crash after it (before the record clear) leaves an uncommitted-looking record but no legacy key, so the next load only clears the record and keeps the migration; a throwing `removeItem` on the legacy key is caught, keeping the record for the next retry. Incomes are written before the end day, so the shift is undone rather than applied twice.
 
 In `load()`, run the migration after the three validations and before building `current`:
 

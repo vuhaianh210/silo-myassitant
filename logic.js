@@ -9,6 +9,10 @@ function parsePeriodKey(key) {
   return { year, month };
 }
 
+export function isValidPeriodKey(value) {
+  try { parsePeriodKey(value); return true; } catch { return false; }
+}
+
 function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
 }
@@ -78,7 +82,6 @@ export function periodBounds(periodKey, startDay) {
 }
 
 export function periodKeyForDate(dateKey, startDay) {
-  parseDateKey(dateKey);
   const { year, month } = parseDateKey(dateKey);
   const candidate = monthKey(year, month);
   return dateKey >= startDateForPeriod(candidate, startDay) ? candidate : shiftPeriodKey(candidate, -1);

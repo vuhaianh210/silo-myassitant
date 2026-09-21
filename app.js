@@ -1,5 +1,5 @@
 import { createRepository } from './storage.js';
-import { appendTripleZero, calculatePeriodSummary, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey } from './logic.js';
+import { appendTripleZero, calculatePeriodSummary, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, isValidPeriodKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey } from './logic.js';
 
 const repository = createRepository(localStorage);
 const loaded = repository.load();
@@ -58,7 +58,7 @@ function saveCycleStartDay(event) { event.preventDefault(); const day = Number($
 
 if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textContent = 'Silo không đọc được dữ liệu đang lưu và đã dừng ghi để tránh ghi đè.'; } else {
   const savedPeriod = sessionStorage.getItem('silo_selected_period');
-  const selectedPeriodKey = /^\d{4}-(0[1-9]|1[0-2])$/.test(savedPeriod ?? '') ? savedPeriod : periodKeyForDate(todayKey(), loaded.state.cycleStartDay);
+  const selectedPeriodKey = isValidPeriodKey(savedPeriod) ? savedPeriod : periodKeyForDate(todayKey(), loaded.state.cycleStartDay);
   if (savedPeriod) sessionStorage.removeItem('silo_selected_period');
   state = { ...loaded.state, selectedPeriodKey, selectedCategoryId: 'all' }; $('#app').inert = false; applyTheme(state.theme); render();
   $('#themeButton').addEventListener('click', () => $('#themeSheet').showModal()); $('#themeForm').addEventListener('change', event => { if (event.target.name !== 'theme') return; try { repository.saveTheme(event.target.value); state.theme = event.target.value; applyTheme(state.theme); $('#themeSheet').close(); } catch { reportStorageError(); } }); systemTheme.addEventListener('change', () => { if (state.theme === 'system') applyTheme('system'); });

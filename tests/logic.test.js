@@ -8,6 +8,7 @@ import {
   formatMoneyInput,
   formatVnd,
   isValidDateKey,
+  isValidPeriodKey,
   normalizeMoneyDigits,
   parsePositiveAmount,
   periodBounds,
@@ -58,6 +59,12 @@ test('date validation rejects impossible calendar dates', () => {
   assert.equal(isValidDateKey('2028-02-29'), true);
   assert.equal(isValidDateKey('2027-02-29'), false);
   assert.equal(isValidDateKey('2026-13-01'), false);
+});
+
+test('period key validation rejects malformed keys', () => {
+  assert.equal(isValidPeriodKey('2026-09'), true);
+  assert.equal(isValidPeriodKey('2026-13'), false);
+  assert.equal(isValidPeriodKey(null), false);
 });
 
 test('period filter uses inclusive start and exclusive next start', () => {

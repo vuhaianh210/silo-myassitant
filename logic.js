@@ -53,6 +53,10 @@ function nextDay(dateKey) {
   return `${next.year}-${String(next.month).padStart(2, '0')}-01`;
 }
 
+function assertEndDay(endDay) {
+  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) throw new TypeError('endDay must be an integer from 1 through 31');
+}
+
 function shortDate(dateKey) {
   const { month, day } = parseDateKey(dateKey);
   return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
@@ -65,9 +69,7 @@ export function shiftPeriodKey(periodKey, delta) {
 }
 
 export function periodBounds(periodKey, endDay, anchor = null) {
-  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
-    throw new TypeError('endDay must be an integer from 1 through 31');
-  }
+  assertEndDay(endDay);
   const endDate = startDateForPeriod(periodKey, endDay);
   const chainStartDate = nextDay(startDateForPeriod(shiftPeriodKey(periodKey, -1), endDay));
   const startDate = anchor !== null && anchor !== '' && chainStartDate < anchor && anchor <= endDate ? anchor : chainStartDate;
@@ -75,9 +77,7 @@ export function periodBounds(periodKey, endDay, anchor = null) {
 }
 
 export function periodKeyForDate(dateKey, endDay) {
-  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
-    throw new TypeError('endDay must be an integer from 1 through 31');
-  }
+  assertEndDay(endDay);
   const { year, month } = parseDateKey(dateKey);
   const candidate = monthKey(year, month);
   return dateKey > startDateForPeriod(candidate, endDay) ? shiftPeriodKey(candidate, 1) : candidate;

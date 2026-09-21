@@ -75,9 +75,8 @@ test('an anchor replaces the start of the first period only', () => {
   assert.equal(periodBounds('2026-09', 10, '2026-09-21').endDate, '2026-09-10');
 });
 
-test('every end day keeps periods contiguous and keys distinct', () => {
+test('every end day keeps periods contiguous and dates resolve to their own period', () => {
   for (let endDay = 1; endDay <= 31; endDay++) {
-    const keys = [];
     for (let index = 0; index < 30; index++) {
       const key = shiftPeriodKey('2026-01', index);
       const bounds = periodBounds(key, endDay);
@@ -86,9 +85,9 @@ test('every end day keeps periods contiguous and keys distinct', () => {
       const expected = new Date(`${before.endDate}T00:00:00Z`);
       expected.setUTCDate(expected.getUTCDate() + 1);
       assert.equal(bounds.startDate, expected.toISOString().slice(0, 10), `${key}/${endDay} broke contiguity`);
-      keys.push(bounds.key);
+      assert.equal(periodKeyForDate(bounds.startDate, endDay), bounds.key, `${key}/${endDay} start not in its own period`);
+      assert.equal(periodKeyForDate(bounds.endDate, endDay), bounds.key, `${key}/${endDay} end not in its own period`);
     }
-    assert.equal(new Set(keys).size, keys.length, `duplicate key for end day ${endDay}`);
   }
 });
 ```
@@ -151,15 +150,17 @@ function nextDay(dateKey) {
   const next = parsePeriodKey(monthKey(year, month + 1));
   return `${next.year}-${String(next.month).padStart(2, '0')}-01`;
 }
+
+function assertEndDay(endDay) {
+  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) throw new TypeError('endDay must be an integer from 1 through 31');
+}
 ```
 
 Replace `periodBounds` entirely. `startDateForPeriod(periodKey, endDay)` already computes `periodKey-min(endDay, daysInMonth)`, so it is reused as the end boundary:
 
 ```javascript
 export function periodBounds(periodKey, endDay, anchor = null) {
-  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
-    throw new TypeError('endDay must be an integer from 1 through 31');
-  }
+  assertEndDay(endDay);
   const endDate = startDateForPeriod(periodKey, endDay);
   const chainStartDate = nextDay(startDateForPeriod(shiftPeriodKey(periodKey, -1), endDay));
   const startDate = anchor !== null && anchor !== '' && chainStartDate < anchor && anchor <= endDate ? anchor : chainStartDate;
@@ -171,9 +172,7 @@ Replace `periodKeyForDate`:
 
 ```javascript
 export function periodKeyForDate(dateKey, endDay) {
-  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
-    throw new TypeError('endDay must be an integer from 1 through 31');
-  }
+  assertEndDay(endDay);
   const { year, month } = parseDateKey(dateKey);
   const candidate = monthKey(year, month);
   return dateKey > startDateForPeriod(candidate, endDay) ? shiftPeriodKey(candidate, 1) : candidate;

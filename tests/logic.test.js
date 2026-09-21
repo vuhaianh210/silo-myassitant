@@ -50,9 +50,8 @@ test('an anchor replaces the start of the first period only', () => {
   assert.equal(periodBounds('2026-09', 10, '2026-09-21').endDate, '2026-09-10');
 });
 
-test('every end day keeps periods contiguous and keys distinct', () => {
+test('every end day keeps periods contiguous and dates resolve to their own period', () => {
   for (let endDay = 1; endDay <= 31; endDay++) {
-    const keys = [];
     for (let index = 0; index < 30; index++) {
       const key = shiftPeriodKey('2026-01', index);
       const bounds = periodBounds(key, endDay);
@@ -61,9 +60,9 @@ test('every end day keeps periods contiguous and keys distinct', () => {
       const expected = new Date(`${before.endDate}T00:00:00Z`);
       expected.setUTCDate(expected.getUTCDate() + 1);
       assert.equal(bounds.startDate, expected.toISOString().slice(0, 10), `${key}/${endDay} broke contiguity`);
-      keys.push(bounds.key);
+      assert.equal(periodKeyForDate(bounds.startDate, endDay), bounds.key, `${key}/${endDay} start not in its own period`);
+      assert.equal(periodKeyForDate(bounds.endDate, endDay), bounds.key, `${key}/${endDay} end not in its own period`);
     }
-    assert.equal(new Set(keys).size, keys.length, `duplicate key for end day ${endDay}`);
   }
 });
 

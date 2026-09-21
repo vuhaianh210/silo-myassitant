@@ -69,6 +69,8 @@ test('application ships no third-party runtime or analytics endpoint', () => {
 
 test('expenses before the anchor stay reachable and their styles exist', () => {
   assert.match(appSource, /function expenseRow\s*\(/);
+  assert.match(appSource, /track\.className = 'expense-track'/);
+  assert.match(appSource, /actions\.className = 'expense-actions'/);
   assert.match(appSource, /expensesBeforeAnchor\(state\.expenses, state\.anchor/);
   assert.match(appSource, /'before-anchor'/);
   assert.match(styles, /\.before-anchor\{/);

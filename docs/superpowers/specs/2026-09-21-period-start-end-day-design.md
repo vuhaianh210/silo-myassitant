@@ -115,8 +115,11 @@ is set. The secondary line reads `Kết thúc ngày 10`.
 
 **Expenses dated before the anchor.** They belong to no period, so they would otherwise be
 unreachable. A collapsed section `Trước kỳ đầu (N)` at the end of the expense list, rendered only
-when `N > 0`, lists them with the same swipe-to-reveal `Sửa` / `Xóa` actions. It honours the active
-category filter and counts globally.
+when `N > 0`, lists them with the same swipe-to-reveal `Sửa` / `Xóa` actions.
+
+* `N` is the number of expenses the section shows: every stored expense dated before the anchor,
+  drawn from the whole store rather than from the period being viewed, and narrowed by the active
+  category filter exactly like the period list above it.
 
 ## Tests
 

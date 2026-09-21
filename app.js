@@ -107,8 +107,8 @@ function saveCycleSettings(event) {
   if (anchor !== null && !isValidDateKey(anchor)) { $('#cycleAnchorError').textContent = 'Ngày bắt đầu không hợp lệ.'; return; }
   const finish = () => {
     try {
-      repository.saveCycleEndDay(day); repository.saveAnchor(anchor);
-      state.cycleEndDay = day; state.anchor = anchor;
+      repository.saveCycleEndDay(day); state.cycleEndDay = day;
+      repository.saveAnchor(anchor); state.anchor = anchor;
       state.selectedPeriodKey = anchor !== null && todayKey() < anchor ? periodKeyForDate(anchor, day) : periodKeyForDate(todayKey(), day);
       state.selectedCategoryId = 'all'; $('#periodSettingsSheet').close(); render(); announce('Đã lưu kỳ chi tiêu');
     } catch { reportStorageError(); }

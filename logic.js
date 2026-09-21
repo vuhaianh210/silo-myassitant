@@ -46,11 +46,11 @@ function startDateForPeriod(periodKey, startDay) {
   return `${periodKey}-${String(day).padStart(2, '0')}`;
 }
 
-function previousDate(dateKey) {
+function nextDay(dateKey) {
   const { year, month, day } = parseDateKey(dateKey);
-  if (day > 1) return `${year}-${String(month).padStart(2, '0')}-${String(day - 1).padStart(2, '0')}`;
-  const previous = parsePeriodKey(monthKey(year, month - 1));
-  return `${previous.year}-${String(previous.month).padStart(2, '0')}-${daysInMonth(previous.year, previous.month)}`;
+  if (day < daysInMonth(year, month)) return `${year}-${String(month).padStart(2, '0')}-${String(day + 1).padStart(2, '0')}`;
+  const next = parsePeriodKey(monthKey(year, month + 1));
+  return `${next.year}-${String(next.month).padStart(2, '0')}-01`;
 }
 
 function shortDate(dateKey) {
@@ -64,34 +64,42 @@ export function shiftPeriodKey(periodKey, delta) {
   return monthKey(year, month + delta);
 }
 
-export function periodBounds(periodKey, startDay) {
-  if (!Number.isInteger(startDay) || startDay < 1 || startDay > 31) {
-    throw new TypeError('startDay must be an integer from 1 through 31');
+export function periodBounds(periodKey, endDay, anchor = null) {
+  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
+    throw new TypeError('endDay must be an integer from 1 through 31');
   }
-  const startDate = startDateForPeriod(periodKey, startDay);
-  const nextStartDate = startDateForPeriod(shiftPeriodKey(periodKey, 1), startDay);
-  const endDate = previousDate(nextStartDate);
-  const start = parseDateKey(startDate);
-  const end = parseDateKey(endDate);
-  const label = start.month === end.month && start.year === end.year
-    ? `Kỳ tháng ${start.month}`
-    : start.year === end.year
-      ? `Kỳ tháng ${start.month}–${end.month}`
-      : `Kỳ tháng ${start.month}/${start.year}–${end.month}/${end.year}`;
-  return { key: periodKey, startDate, nextStartDate, endDate, label, rangeLabel: `${shortDate(startDate)}–${shortDate(endDate)}` };
+  const endDate = startDateForPeriod(periodKey, endDay);
+  const chainStartDate = nextDay(startDateForPeriod(shiftPeriodKey(periodKey, -1), endDay));
+  const startDate = anchor !== null && anchor !== '' && chainStartDate < anchor && anchor <= endDate ? anchor : chainStartDate;
+  return { key: periodKey, startDate, endDate, rangeLabel: `${shortDate(startDate)}–${shortDate(endDate)}` };
 }
 
-export function periodKeyForDate(dateKey, startDay) {
+export function periodKeyForDate(dateKey, endDay) {
+  if (!Number.isInteger(endDay) || endDay < 1 || endDay > 31) {
+    throw new TypeError('endDay must be an integer from 1 through 31');
+  }
   const { year, month } = parseDateKey(dateKey);
   const candidate = monthKey(year, month);
-  return dateKey >= startDateForPeriod(candidate, startDay) ? candidate : shiftPeriodKey(candidate, -1);
+  return dateKey > startDateForPeriod(candidate, endDay) ? shiftPeriodKey(candidate, 1) : candidate;
+}
+
+function newestFirst(left, right) {
+  return right.date.localeCompare(left.date) || right.id.localeCompare(left.id);
 }
 
 export function expensesForPeriod(expenses, bounds, categoryId = 'all') {
   return expenses
-    .filter(expense => expense.date >= bounds.startDate && expense.date < bounds.nextStartDate)
+    .filter(expense => expense.date >= bounds.startDate && expense.date <= bounds.endDate)
     .filter(expense => categoryId === 'all' || expense.catId === categoryId)
-    .toSorted((left, right) => right.date.localeCompare(left.date) || right.id.localeCompare(left.id));
+    .toSorted(newestFirst);
+}
+
+export function expensesBeforeAnchor(expenses, anchor, categoryId = 'all') {
+  if (!anchor) return [];
+  return expenses
+    .filter(expense => expense.date < anchor)
+    .filter(expense => categoryId === 'all' || expense.catId === categoryId)
+    .toSorted(newestFirst);
 }
 
 export function calculatePeriodSummary(income, expenses) {

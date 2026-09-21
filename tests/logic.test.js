@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   appendTripleZero,
   calculatePeriodSummary,
+  expensesBeforeAnchor,
   expensesForPeriod,
   formatMoneyInput,
   formatVnd,
@@ -17,38 +18,62 @@ import {
   swipeTarget,
 } from '../logic.js';
 
-test('period starting on day 1 stays inside one month', () => {
-  assert.deepEqual(periodBounds('2026-09', 1), {
-    key: '2026-09', startDate: '2026-09-01', nextStartDate: '2026-10-01', endDate: '2026-09-30',
-    label: 'Kỳ tháng 9', rangeLabel: '01/09–30/09',
+test('a period ends on the recurring end day and starts the day after the previous one', () => {
+  assert.deepEqual(periodBounds('2026-09', 31), {
+    key: '2026-09', startDate: '2026-09-01', endDate: '2026-09-30', rangeLabel: '01/09–30/09',
+  });
+  assert.deepEqual(periodBounds('2026-10', 24), {
+    key: '2026-10', startDate: '2026-09-25', endDate: '2026-10-24', rangeLabel: '25/09–24/10',
   });
 });
 
-test('period starting on day 25 crosses two months', () => {
-  assert.deepEqual(periodBounds('2026-09', 25), {
-    key: '2026-09', startDate: '2026-09-25', nextStartDate: '2026-10-25', endDate: '2026-10-24',
-    label: 'Kỳ tháng 9–10', rangeLabel: '25/09–24/10',
+test('end day 31 clamps to a short month and stays contiguous', () => {
+  assert.deepEqual(periodBounds('2027-02', 31), {
+    key: '2027-02', startDate: '2027-02-01', endDate: '2027-02-28', rangeLabel: '01/02–28/02',
   });
+  assert.equal(periodBounds('2028-02', 31).endDate, '2028-02-29');
+  assert.equal(periodBounds('2027-03', 31).startDate, '2027-03-01');
 });
 
-test('period day 31 clamps to the last day and remains contiguous', () => {
-  assert.deepEqual(periodBounds('2027-01', 31), {
-    key: '2027-01', startDate: '2027-01-31', nextStartDate: '2027-02-28', endDate: '2027-02-27',
-    label: 'Kỳ tháng 1–2', rangeLabel: '31/01–27/02',
+test('end day 30 loses a day to February without overlapping', () => {
+  assert.equal(periodBounds('2027-01', 30).endDate, '2027-01-30');
+  assert.equal(periodBounds('2027-02', 30).startDate, '2027-01-31');
+  assert.equal(periodBounds('2027-02', 30).endDate, '2027-02-28');
+  assert.equal(periodBounds('2027-03', 30).startDate, '2027-03-01');
+});
+
+test('an anchor replaces the start of the first period only', () => {
+  assert.deepEqual(periodBounds('2026-10', 10, '2026-09-21'), {
+    key: '2026-10', startDate: '2026-09-21', endDate: '2026-10-10', rangeLabel: '21/09–10/10',
   });
-  assert.equal(periodBounds('2027-02', 31).startDate, '2027-02-28');
-  assert.equal(periodBounds('2028-02', 31).startDate, '2028-02-29');
+  assert.equal(periodBounds('2026-11', 10, '2026-09-21').startDate, '2026-10-11');
+  assert.equal(periodBounds('2026-09', 10, '2026-09-21').endDate, '2026-09-10');
 });
 
-test('cross-year label includes both years', () => {
-  assert.equal(periodBounds('2026-12', 25).label, 'Kỳ tháng 12/2026–1/2027');
+test('every end day keeps periods contiguous and keys distinct', () => {
+  for (let endDay = 1; endDay <= 31; endDay++) {
+    const keys = [];
+    for (let index = 0; index < 30; index++) {
+      const key = shiftPeriodKey('2026-01', index);
+      const bounds = periodBounds(key, endDay);
+      const before = periodBounds(shiftPeriodKey(key, -1), endDay);
+      assert.ok(bounds.startDate <= bounds.endDate, `${key}/${endDay} inverted`);
+      const expected = new Date(`${before.endDate}T00:00:00Z`);
+      expected.setUTCDate(expected.getUTCDate() + 1);
+      assert.equal(bounds.startDate, expected.toISOString().slice(0, 10), `${key}/${endDay} broke contiguity`);
+      keys.push(bounds.key);
+    }
+    assert.equal(new Set(keys).size, keys.length, `duplicate key for end day ${endDay}`);
+  }
 });
 
-test('date resolves to the period that most recently started', () => {
-  assert.equal(periodKeyForDate('2026-09-24', 25), '2026-08');
-  assert.equal(periodKeyForDate('2026-09-25', 25), '2026-09');
-  assert.equal(periodKeyForDate('2026-10-24', 25), '2026-09');
-  assert.equal(periodKeyForDate('2026-10-25', 25), '2026-10');
+test('a date resolves to the period that contains it', () => {
+  assert.equal(periodKeyForDate('2026-10-10', 10), '2026-10');
+  assert.equal(periodKeyForDate('2026-10-11', 10), '2026-11');
+  assert.equal(periodKeyForDate('2026-09-24', 24), '2026-09');
+  assert.equal(periodKeyForDate('2026-09-25', 24), '2026-10');
+  assert.equal(periodKeyForDate('2026-10-24', 24), '2026-10');
+  assert.equal(periodKeyForDate('2026-10-25', 24), '2026-11');
 });
 
 test('period keys shift without Date timezone conversion', () => {
@@ -75,16 +100,27 @@ test('releasing a row drag decides reveal or spring back', () => {
   assert.equal(swipeTarget(-60, 1), 'closed');
 });
 
-test('period filter uses inclusive start and exclusive next start', () => {
+test('period filtering uses the inclusive start and end dates', () => {
   const expenses = [
     { id: 'a', title: 'A', amount: 10, date: '2026-09-24', catId: 'food' },
     { id: 'b', title: 'B', amount: 20, date: '2026-09-25', catId: 'food' },
     { id: 'c', title: 'C', amount: 30, date: '2026-10-24', catId: 'saving' },
     { id: 'd', title: 'D', amount: 40, date: '2026-10-25', catId: 'food' },
   ];
-  const bounds = periodBounds('2026-09', 25);
+  const bounds = periodBounds('2026-10', 24);
   assert.deepEqual(expensesForPeriod(expenses, bounds).map(item => item.id), ['c', 'b']);
   assert.deepEqual(expensesForPeriod(expenses, bounds, 'food').map(item => item.id), ['b']);
+});
+
+test('expenses before the anchor are reported and honour the category filter', () => {
+  const expenses = [
+    { id: 'a', title: 'A', amount: 10, date: '2026-09-20', catId: 'food' },
+    { id: 'b', title: 'B', amount: 20, date: '2026-09-21', catId: 'food' },
+    { id: 'c', title: 'C', amount: 30, date: '2026-09-01', catId: 'saving' },
+  ];
+  assert.deepEqual(expensesBeforeAnchor(expenses, '2026-09-21').map(item => item.id), ['a', 'c']);
+  assert.deepEqual(expensesBeforeAnchor(expenses, '2026-09-21', 'food').map(item => item.id), ['a']);
+  assert.deepEqual(expensesBeforeAnchor(expenses, null), []);
 });
 
 test('summary distinguishes missing income and exceeded income', () => {
@@ -121,7 +157,7 @@ test('summary changes status exactly at 80 and 100 percent', () => {
 test('expense filtering does not mutate the source array', () => {
   const source = [{ id: 'a', amount: 1, date: '2026-09-26', catId: 'food' }, { id: 'b', amount: 2, date: '2026-09-25', catId: 'saving' }];
   const before = structuredClone(source);
-  expensesForPeriod(source, periodBounds('2026-09', 25));
+  expensesForPeriod(source, periodBounds('2026-10', 24));
   assert.deepEqual(source, before);
 });
 

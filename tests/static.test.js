@@ -69,6 +69,7 @@ test('application ships no third-party runtime or analytics endpoint', () => {
 
 test('period settings expose an end day, an anchor and a live preview', () => {
   assert.match(index, /id="cycleEndDay"[^>]*inputmode="numeric"/);
+  assert.match(index, /id="periodSettingsForm"[^>]*novalidate/);
   assert.match(index, /id="cycleAnchor"[^>]*type="date"/);
   assert.match(index, /id="periodPreview"[^>]*aria-live="polite"/);
   assert.doesNotMatch(appSource, /cycleStartDay/);

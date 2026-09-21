@@ -104,8 +104,10 @@ because the first run's alarming numbers should not be mistaken for real ones.
 * A live preview of the resulting sequence, e.g.
   `Kỳ này: 21/09 → 10/10 · Kỳ sau: 11/10 → 10/11`, recomputed as either field changes. This is what
   makes the "start does not recur" consequence visible instead of surprising.
-* Saving shows a confirm dialog in the existing style, naming what changes when income keys shift:
-  `Thu nhập của các kỳ cũ sẽ được dịch sang kỳ mới. Tiếp tục?`
+* Saving shows a confirm dialog in the existing style, naming the consequences of the change: the
+  existing expenses are regrouped into the new periods, and any expense that now falls before the
+  anchor will belong to no period. It does not mention income keys — the one-time income-key
+  migration happens in `storage.js` during load, before any dialog can exist.
 
 **Period navigation.** Title = the date range (`21/09 → 10/10`); the `Kỳ tháng X` label is removed
 because a period spans two months. The `‹` control is disabled on the first period when an anchor

@@ -464,8 +464,10 @@ Inside `#periodPicker`, replace the `#periodLabel` / `#periodRange` pair with (t
 Replace the whole `<form id="periodSettingsForm">` element:
 
 ```html
-<form id="periodSettingsForm"><header><h2 id="periodSettingsTitle">Cài đặt kỳ</h2><button type="button" data-close="periodSettingsSheet" aria-label="Đóng">×</button></header><label for="cycleEndDay">Kết thúc kỳ — ngày</label><input id="cycleEndDay" type="number" inputmode="numeric" min="1" max="31"><p id="cycleEndDayError" class="field-error" role="alert"></p><label for="cycleAnchor">Kỳ đầu tiên bắt đầu</label><input id="cycleAnchor" type="date"><p id="cycleAnchorError" class="field-error" role="alert"></p><p id="periodPreview" class="period-preview" aria-live="polite"></p><button class="primary-button" type="submit">Lưu kỳ</button></form>
+<form id="periodSettingsForm" novalidate><header><h2 id="periodSettingsTitle">Cài đặt kỳ</h2><button type="button" data-close="periodSettingsSheet" aria-label="Đóng">×</button></header><label for="cycleEndDay">Kết thúc kỳ — ngày</label><input id="cycleEndDay" type="number" inputmode="numeric" min="1" max="31"><p id="cycleEndDayError" class="field-error" role="alert"></p><label for="cycleAnchor">Kỳ đầu tiên bắt đầu</label><input id="cycleAnchor" type="date"><p id="cycleAnchorError" class="field-error" role="alert"></p><p id="periodPreview" class="period-preview" aria-live="polite"></p><button class="primary-button" type="submit">Lưu kỳ</button></form>
 ```
+
+`novalidate` is required because `#cycleEndDay` carries `min`/`max`, so the browser would otherwise block submit with its own native bubble and the app's own `Ngày kết thúc từ 1 đến 31.` error would be unreachable.
 
 - [ ] **Step 4: Update `app.js`**
 

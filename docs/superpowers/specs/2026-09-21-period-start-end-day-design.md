@@ -1,168 +1,166 @@
-# Period start day and end day — design
+# Period end day, with a start anchor — design
 
-Status: design approved by the owner on 2026-09-21; this document is the reviewed spec.
-Supersedes the earlier end-day-only sketch (that variant required a one-month income-key
-migration; this one does not).
+Status: **revision 2**, 2026-09-21. Revision 1 (two independent recurring days, gaps allowed) is
+superseded: the owner confirmed that periods must stay gap-free, and that with
+`start 21 / end 10` the next period starts on the **11th**, not the 21st.
+
+Superseded means: the start day does **not** recur. The recurring setting is the end day; the start
+day anchors the first period only. This revision also reintroduces a one-time income-key migration
+that revision 1 had avoided.
 
 ## Problem
 
-Silo has a single recurring setting, `cycleStartDay` (1–31, stored in `silo_cycle_start_day`).
-The period's end is derived: `end = day before the next period's start`, so periods always tile
-the calendar with no gaps and the owner cannot control the end at all.
+Silo has one recurring setting, `cycleStartDay` (1–31, `silo_cycle_start_day`). The end is derived
+as *the day before the next period's start*, so the owner cannot choose the end at all.
 
-The owner wants to choose **both** the start day and the end day, and accepts that a period may
-be shorter than a month, leaving days that belong to no period.
+The owner wants to choose both days while keeping periods contiguous. Their own example:
+"start 21, end 10" must produce `21/09 → 10/10`, then `11/10 → 10/11`, then `11/11 → 10/12`.
+Arithmetic forces the consequence: from the second period on, the start is always
+`end day + 1`, so a *recurring* start day is impossible without leaving gaps. The start day is
+therefore an **anchor for the first period**, and the end day is the recurring boundary.
 
 ## Model
 
-Two recurring day-of-month settings, `S` (start) and `D` (end), each an integer 1–31.
-Periods are indexed by a month slot `M` (`YYYY-MM`). `dim(X)` is the number of days in month `X`,
-`min` is clamping to the real length of the month.
+Two settings:
+
+* `D` — end day, 1–31, recurring.
+* `A` — anchor: the calendar date on which the first period starts. Optional; empty means the chain
+  extends backwards without limit.
+
+With `dim(X)` the number of days in month `X`:
 
 ```
-start(M) = M - min(S, dim(M))
-end(M)   = (D >= S ? M : M + 1) - min(D, dim(D >= S ? M : M + 1))
-end(M)   = min(end(M), start(M + 1) - 1)          # ceiling clamp
+B(M)              = min(D, dim(M))                      # the monthly end boundary
+period ending M   = [ B(M - 1) + 1 , B(M) ]              # contiguous by construction
+key(M)            = M                                    # the month the period ENDS in
+first period      = the earliest period whose B(M) >= A, with its start replaced by A
+periods with B(M) < A do not exist
 ```
-
-* `D >= S` — the period lies inside month `M` ("same-month").
-* `D < S` — the period runs from month `M` into month `M+1` ("crossing"), which is how the
-  current derived model behaves.
-* The ceiling clamp exists so the end can never reach into the next period. It only ever binds
-  in the crossing case where `dim(M+1) <= D`.
-
-**Period identity.** The key of a period is the month in which it **starts** — identical to
-today's key. Therefore `silo_period_incomes` keys keep their current meaning (see Compatibility).
 
 ### Invariants
 
-These are the correctness contract; each is covered by an exhaustive test.
+1. **Contiguous.** `end(M) + 1 day == start(M + 1)`. Gaps are impossible, with or without an anchor.
+2. **One key per month, never duplicated.** The key is the month the period ends in, so exactly 12
+   keys per year and two incomes can never collide. This is *why* the key moves off the start
+   month: with the chain, `D >= 29` makes two consecutive periods start in the same month
+   (`D = 29`: the period ending 29/03 starts 01/03 and the one ending 29/04 starts 30/03).
+3. **Every date on or after `A` belongs to exactly one period.** Dates before `A` belong to none —
+   that is pre-history, not a gap.
 
-1. **No overlap.** `end(M) < start(M + 1)` for every `M`, `S`, `D`. Without the ceiling clamp,
-   `S = 31, D = 30` would put 28/02 in two periods.
-2. **No duplicate keys.** Exactly one period exists per month slot `M`, so two periods can never
-   share a key and two incomes can never overwrite each other.
-3. **Every date belongs to at most one period.** It may belong to none: that is a *gap*, and gaps
-   occur only when `D >= S`.
+### Worked example (`D = 10`, `A = 2026-09-21`)
 
-### Verification performed before this spec was written
-
-The formulas above were executed against the current `periodBounds` before any implementation:
-
-* every `S` in 1–31 over 24 consecutive months with `D = S - 1` reproduces today's `startDate`
-  and `endDate` exactly — **0 mismatches**, which is what makes the no-migration claim true;
-* all 961 `(S, D)` pairs satisfy invariants 1–3 over 24 months — **0 overlaps, 0 duplicated keys,
-  0 days belonging to more than one period, 0 inverted periods**;
-* the worked-case table below matches, including the February clamp rows.
-
-The first run of that check reported 20 overlaps and 14 mismatches; the cause was an off-by-one in
-the throwaway check script's clamp, not in the formula. The corrected run is the one reported above.
-
-### Worked cases
-
-| `S`, `D` | Period | Note |
+| Period | Range | Start is |
 |---|---|---|
-| `1, 31` | 01/03–31/03 | whole calendar month; same as today |
-| `25, 24` | 25/09–24/10 | crossing, no gap; same as today |
-| `5, 20` | 05/09–20/09 | same-month; 21/09–04/10 is a gap |
-| `31, 30` | 31/01–27/02 | clamp binds: 28/02 would have overlapped the next period |
-| `30, 29` | 30/01–27/02 | clamp binds in February only |
-| `5, 5` | 05/09–05/09 | one-day period |
-| `31, 15` | 31/01–15/02 | crossing with a gap afterwards |
+| ends 2026-10 | 21/09 → 10/10 | the anchor |
+| ends 2026-11 | 11/10 → 10/11 | `D + 1` |
+| ends 2026-12 | 11/11 → 10/12 | `D + 1` |
+| ends 2027-01 | 11/12 → 10/01 | `D + 1` |
 
-### Resolving a date to a period
+## Verification performed before writing this spec
 
-```
-periodKeyForDate(date, S, D)  -> the latest period whose startDate <= date
-```
+The formulas were executed against the current `periodBounds` before any implementation:
 
-If that period's `endDate < date`, the date is in a gap; the returned period is the one that just
-ended. This single rule is used both for choosing the period shown when the app opens and for
-deciding whether an expense lies outside every period.
+* **Invariants 1–3 for all 31 `D` values over 30 months: 0 contiguity breaks, 0 inverted periods,
+  0 key collisions.**
+* **Legacy equivalence with `D = S - 1`: exact for every `S` from 1 to 28** across 24 months —
+  legacy `startDay = S` and `D = S - 1` produce byte-identical ranges, so nothing moves for those
+  users and `S = 1` maps to `D = 31` with no key shift.
+* **Measured deviations, `S` in 29–31 only:** `S = 29` → 4 of 24 months; `S = 30` → 4 of 24;
+  `S = 31` → 20 of 24. The legacy end is derived from the *next start* (clamped in the following
+  month) while the chain ends at `min(D, dim(month))`, so those boundaries differ by one day. An
+  expense can therefore change period at a February edge for these three legacy values.
+* The worked example above was reproduced exactly, and the run asserts period 1 starts at the
+  anchor while every later period starts on the 11th.
 
-## Storage and compatibility
+Two bugs were found and fixed **in the throwaway check script** during this verification (a
+boundary artefact that faked 27 legacy mismatches, and a demo that emitted the anchored period
+twice). Neither was in the formulas; recording them so the implementer does not repeat them, and
+because the first run's alarming numbers should not be mistaken for real ones.
 
-* `silo_cycle_start_day` keeps its name and meaning; `saveCycleStartDay` is unchanged.
-* New: `silo_cycle_end_day` (`saveCycleEndDay`, validated 1–31).
-* **Default when the end day is absent: `D = S - 1`, with `S = 1` mapping to `D = 31`.**
-* **No data migration.** `D = S - 1` plus the ceiling clamp reproduces today's periods exactly,
-  for every `S` including 29, 30 and 31, and including February in leap and non-leap years. That
-  identity is a required test, not an assumption.
-* Expenses are stored with dates and are regrouped by the period filter, as they already are when
-  the cycle day changes. Income entries are keyed by the period's start month — unchanged — so no
-  income is reinterpreted or moved.
-* If the stored end day is malformed or out of range, fall back to `S - 1` rather than failing the
-  load (the existing repository already falls back this way for `cycleStartDay`).
+## Storage and migration
+
+* New `silo_cycle_end_day` (`saveCycleEndDay`, 1–31).
+* New `silo_cycle_anchor` (a `YYYY-MM-DD` date, or absent). Absent means no anchor.
+* **Legacy migration, run once when `silo_cycle_start_day` is present:**
+  1. `D = (S === 1 ? 31 : S - 1)`.
+  2. Shift every `silo_period_incomes` key by **+1 month** when `S >= 2`, unchanged when `S = 1`.
+     The shift is required because the key moves from the start month to the end month; without it
+     an existing income would be read as belonging to the wrong period.
+  3. Delete `silo_cycle_start_day` **only after** the income write succeeded. On any write failure,
+     leave the legacy key in place so the migration runs again on the next load — fail closed, no
+     income is lost or duplicated. Writing the same shifted keys twice is idempotent.
+* Malformed or out-of-range `silo_cycle_end_day` falls back to `S - 1` when a legacy key is present,
+  otherwise to `31` (which clamps to the last day of whatever month it lands in), matching the
+  repository's existing fallback style.
+* Expenses need no migration: they store dates and are regrouped by the period filter, exactly as
+  they already are when the cycle day changes.
 
 ## Interface
 
-**Settings sheet** (`#periodSettingsSheet`), replacing the single start-day field:
+**Settings sheet** (`#periodSettingsSheet`):
 
-* Two number inputs labelled `Bắt đầu ngày` and `Kết thúc ngày`, both 1–31, both validated with
-  the existing inline error pattern.
-* A live preview of the resulting range for the **period currently displayed in the app**
-  (`state.selectedPeriodKey` recomputed with the draft values), e.g. `31/01 → 27/02`, updated as
-  either input changes. This is what makes the February clamp visible instead of silent.
-* When the draft pair produces gaps, a concrete warning naming the gap that follows the previewed
-  period: `Có 29 ngày không thuộc kỳ nào (21/09–19/10)`.
-* On save, the confirm dialog names the number of **all currently stored expenses** that would fall
-  in a gap under the draft pair, counted across every date, not only the displayed period:
-  `5 khoản chi sẽ không thuộc kỳ nào`.
+* `Kết thúc kỳ — ngày` : number, 1–31. The recurring boundary.
+* `Kỳ đầu tiên bắt đầu` : date, clearable. Empty = no anchor.
+* A live preview of the resulting sequence, e.g.
+  `Kỳ này: 21/09 → 10/10 · Kỳ sau: 11/10 → 10/11`, recomputed as either field changes. This is what
+  makes the "start does not recur" consequence visible instead of surprising.
+* Saving shows a confirm dialog in the existing style, naming what changes when income keys shift:
+  `Thu nhập của các kỳ cũ sẽ được dịch sang kỳ mới. Tiếp tục?`
 
-**Period navigation.** The period title is the date range (`25/09–24/10`); `Kỳ tháng X` is removed
-because the period no longer belongs to one month. The secondary line reads
-`Bắt đầu ngày 25 · Kết thúc ngày 24`.
+**Period navigation.** Title = the date range (`21/09 → 10/10`); the `Kỳ tháng X` label is removed
+because a period spans two months. The `‹` control is disabled on the first period when an anchor
+is set. The secondary line reads `Kết thúc ngày 10`.
 
-**Reaching expenses in a gap.** Expenses that belong to no period remain editable and deletable:
-
-* A collapsed section `Ngoài kỳ (N)` at the end of the expense list, rendered only when `N > 0`,
-  listing those expenses with the same swipe-to-reveal `Sửa` / `Xóa` actions as ordinary rows.
-* `N` is global: it counts every stored expense that falls in a gap under the current pair,
-  independent of which period is being viewed or which category filter is active.
-* The section honours the active category filter, so its contents stay consistent with the filter
-  chips above it. An expense hidden by the filter is still reachable by clearing the filter.
-* Membership test per expense: resolve `periodKeyForDate(expense.date, S, D)` and compare the
-  expense date against that period's bounds; outside means gap.
+**Expenses dated before the anchor.** They belong to no period, so they would otherwise be
+unreachable. A collapsed section `Trước kỳ đầu (N)` at the end of the expense list, rendered only
+when `N > 0`, lists them with the same swipe-to-reveal `Sửa` / `Xóa` actions. It honours the active
+category filter and counts globally.
 
 ## Tests
 
 `tests/logic.test.js`
 
-* Exhaustive sweep: every `S` in 1–31 × every `D` in 1–31 × 24 consecutive month slots asserts
-  invariants 1, 2 and 3, and that `start(M) <= end(M)`.
-* `periodBounds` for `(1,31)`, `(25,24)`, `(5,20)`, `(31,30)`, `(30,29)`, `(5,5)`, `(31,15)`,
-  including February in a leap and a non-leap year.
-* `periodKeyForDate` round-trips: for every date in a sweep, the returned period contains it, or
-  the date is a gap day.
-* Gap accounting: the number of gap days and the number of outside-period expenses are exact.
+* For every `D` 1–31 over 30 months: contiguity (`end + 1 == next start`), `start <= end`, and
+  distinct keys.
+* `D = 29` and `30` specifically assert that two periods never share a key (the collision that
+  forced the key change).
+* The anchored sequence: `D = 10`, anchor `2026-09-21` produces the four ranges in the table above,
+  the first start equals the anchor, every later start is the 11th, and no period exists whose end
+  precedes the anchor.
+* `periodKeyForDate` round-trips: every date on or after the anchor resolves to a period that
+  contains it; every earlier date resolves to "before the anchor".
 
 `tests/storage.test.js`
 
-* A legacy state with only `silo_cycle_start_day` loads with `endDay = startDay - 1` and produces
-  the same ranges as before, with income keys untouched.
-* `S = 1` legacy maps to `D = 31`.
-* Malformed or out-of-range `silo_cycle_end_day` falls back to `S - 1`.
-* Saving both days persists and round-trips.
+* A legacy state with `silo_cycle_start_day = S` migrates to `D = S - 1`, shifts income keys by one
+  month for `S >= 2`, leaves them alone for `S = 1`, and removes the legacy key.
+* Ranges after migration equal the ranges before it for every `S` from 1 to 28.
+* A write failure during migration keeps the legacy key and leaves the incomes unshifted.
+* Running the migration twice is a no-op (idempotent).
+* Malformed end day and malformed anchor fall back without failing the load.
 
 ## Documentation
 
 `PRODUCT.md`:
 
-* Operating Context: the owner chooses the recurring day the period starts **and** the recurring
-  day it ends.
-* Capabilities: note that a period may be shorter than a month and that days between the end and
-  the next start belong to no period; expenses recorded there are surfaced under `Ngoài kỳ`.
+* Operating Context: the owner chooses the recurring day on which a period **ends**, and optionally
+  the date the first period starts.
+* Capabilities: periods run contiguously from the anchor; the start day is not recurring; expenses
+  dated before the anchor are surfaced under `Trước kỳ đầu`.
 
 ## Out of scope
 
-* Choosing an end **date** per individual period (rejected: the owner wants one recurring pair).
-* Export, backup, restore — still explicitly excluded by `PRODUCT.md`.
-* Any income migration.
+* Per-period end dates (rejected earlier by the owner).
+* Any change to expense storage.
+* Export, backup, restore — still excluded by `PRODUCT.md`.
 
 ## Accepted trade-offs
 
-* Gap days hold expenses that belong to no period. They stay reachable only through the
-  `Ngoài kỳ` section; they never appear in any period's totals. The owner accepted this and asked
-  for the warning instead of prevention.
-* In the crossing case with `D >= 28`, the ceiling clamp shortens the period by a day in months
-  whose length falls between `D` and `S`. The live preview in the settings sheet shows it.
+* **The start day does not recur.** Choosing "start 21, end 10" gives 21/09–10/10 and then
+  11/10–10/11. This is arithmetic, not a design preference, and the live preview shows it.
+* **Legacy `startDay` 29, 30 or 31 shifts a boundary by one day** in some months (measured above:
+  4, 4 and 20 months out of 24). Expenses regroup; the income amount stays with its period.
+* **Open point for the owner's review:** the anchor is an optional date and defaults to *unset*,
+  which leaves existing data and behaviour untouched. A friendlier alternative is to default it to
+  the start of the period holding the earliest stored expense. This spec takes the conservative
+  option unless the owner prefers otherwise.

@@ -66,3 +66,11 @@ test('application source does not render owner data with HTML strings', () => {
 test('application ships no third-party runtime or analytics endpoint', () => {
   assert.doesNotMatch(index, /https?:\/\//); assert.doesNotMatch(appSource, /fetch\(|XMLHttpRequest|sendBeacon|analytics/i);
 });
+
+test('period settings expose an end day, an anchor and a live preview', () => {
+  assert.match(index, /id="cycleEndDay"[^>]*inputmode="numeric"/);
+  assert.match(index, /id="cycleAnchor"[^>]*type="date"/);
+  assert.match(index, /id="periodPreview"[^>]*aria-live="polite"/);
+  assert.doesNotMatch(appSource, /cycleStartDay/);
+  assert.match(appSource, /periodBounds\(state\.selectedPeriodKey, state\.cycleEndDay, state\.anchor\)/);
+});

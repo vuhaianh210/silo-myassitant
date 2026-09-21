@@ -24,7 +24,8 @@ const oldCategories = [
 test('fresh load creates the complete Silo 2.0 state', () => {
   const result = createRepository(memoryStorage()).load();
   assert.equal(result.ok, true);
-  assert.equal(result.state.cycleStartDay, 1);
+  assert.equal(result.state.cycleEndDay, 31);
+  assert.equal(result.state.anchor, null);
   assert.equal(result.state.theme, 'system');
   assert.equal(result.state.periodIncomes['2026-09'], undefined);
   assert.deepEqual(result.state.categories.map(category => category.id), DEFAULT_CATEGORIES.map(category => category.id));
@@ -58,10 +59,81 @@ test('malformed financial JSON returns read-only error and remains untouched', (
   assert.equal(storage.getItem('silo_expenses'), '{broken');
 });
 
-test('invalid theme and start day safely fall back', () => {
+test('invalid theme and end day safely fall back', () => {
   const result = createRepository(memoryStorage({ silo_theme: 'neon', silo_cycle_start_day: '99' })).load();
   assert.equal(result.state.theme, 'system');
-  assert.equal(result.state.cycleStartDay, 1);
+  assert.equal(result.state.cycleEndDay, 31);
+});
+
+test('legacy start day migrates to an end day and shifts income keys once', () => {
+  const storage = memoryStorage({
+    silo_cycle_start_day: '25',
+    silo_period_incomes: JSON.stringify({ '2026-09': 5_000_000, '2026-10': 6_000_000 }),
+  });
+  const first = createRepository(storage).load();
+  assert.equal(first.ok, true);
+  assert.equal(first.state.cycleEndDay, 24);
+  assert.equal(first.state.anchor, null);
+  assert.deepEqual(first.state.periodIncomes, { '2026-10': 5_000_000, '2026-11': 6_000_000 });
+  assert.equal(storage.getItem('silo_cycle_start_day'), null);
+  assert.equal(storage.getItem('silo_cycle_end_day'), '24');
+
+  const second = createRepository(storage).load();
+  assert.deepEqual(second.state.periodIncomes, { '2026-10': 5_000_000, '2026-11': 6_000_000 });
+  assert.equal(second.state.cycleEndDay, 24);
+});
+
+test('legacy start day 1 becomes end day 31 without touching income keys', () => {
+  const storage = memoryStorage({ silo_cycle_start_day: '1', silo_period_incomes: JSON.stringify({ '2026-09': 5_000_000 }) });
+  const result = createRepository(storage).load();
+  assert.equal(result.state.cycleEndDay, 31);
+  assert.deepEqual(result.state.periodIncomes, { '2026-09': 5_000_000 });
+  assert.equal(storage.getItem('silo_cycle_start_day'), null);
+});
+
+test('a failed migration keeps the legacy key and leaves incomes unshifted', () => {
+  const base = memoryStorage({ silo_cycle_start_day: '25', silo_period_incomes: JSON.stringify({ '2026-09': 5_000_000 }) });
+  const failing = { ...base, setItem(key, value) { if (key === 'silo_period_incomes') throw new Error('disk full'); base.setItem(key, value); } };
+  const result = createRepository(failing).load();
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'STORAGE_WRITE_FAILED');
+  assert.equal(base.getItem('silo_cycle_start_day'), '25');
+  assert.deepEqual(JSON.parse(base.getItem('silo_period_incomes')), { '2026-09': 5_000_000 });
+  assert.notEqual(base.getItem('silo_pending_transaction'), null);
+
+  const recovered = createRepository(base).load();
+  assert.equal(recovered.ok, true);
+  assert.deepEqual(recovered.state.periodIncomes, { '2026-10': 5_000_000 });
+});
+
+test('a half-finished migration recovers and retries cleanly', () => {
+  const base = memoryStorage({ silo_cycle_start_day: '25', silo_period_incomes: JSON.stringify({ '2026-09': 5_000_000 }) });
+  let failures = 1;
+  const flaky = {
+    ...base,
+    setItem(key, value) {
+      if (failures > 0 && key === 'silo_cycle_end_day') { failures -= 1; throw new Error('disk full'); }
+      base.setItem(key, value);
+    },
+  };
+  assert.equal(createRepository(flaky).load().ok, false);
+  const recovered = createRepository(base).load();
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.state.cycleEndDay, 24);
+  assert.deepEqual(recovered.state.periodIncomes, { '2026-10': 5_000_000 });
+});
+
+test('end day and anchor persist and round-trip', () => {
+  const storage = memoryStorage();
+  const repository = createRepository(storage);
+  repository.load();
+  repository.saveCycleEndDay(10);
+  repository.saveAnchor('2026-09-21');
+  const reloaded = createRepository(storage).load();
+  assert.equal(reloaded.state.cycleEndDay, 10);
+  assert.equal(reloaded.state.anchor, '2026-09-21');
+  assert.throws(() => repository.saveCycleEndDay(32), /1 through 31/);
+  assert.throws(() => repository.saveAnchor('21/09/2026'), /Invalid anchor/);
 });
 
 test('period income persists as a positive safe integer', () => {

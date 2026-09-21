@@ -476,6 +476,12 @@ Replace `selectedBounds`:
 function selectedBounds() { return periodBounds(state.selectedPeriodKey, state.cycleEndDay, state.anchor); }
 ```
 
+The init block also reads the old field. Without this change the app throws on load, because `periodKeyForDate` rejects an `undefined` end day — and the rename assertion in Step 1 fails on this line:
+
+```javascript
+  const selectedPeriodKey = isValidPeriodKey(savedPeriod) ? savedPeriod : (loaded.state.anchor !== null && todayKey() < loaded.state.anchor ? periodKeyForDate(loaded.state.anchor, loaded.state.cycleEndDay) : periodKeyForDate(todayKey(), loaded.state.cycleEndDay));
+```
+
 Inside `render()`, replace the two label assignments with:
 
 ```javascript

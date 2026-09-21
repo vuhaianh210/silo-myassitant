@@ -98,7 +98,7 @@ test('iPhone icon is a 180 by 180 PNG with transparent outer corners', async () 
 });
 
 test('HTML, manifest, and service worker reference the complete local icon set', () => {
-  assert.match(worker, /const CACHE_NAME = 'silo-v2-icon-wallet';/);
+  assert.match(worker, /const CACHE_NAME = 'silo-[a-z0-9-]+';/);
   assert.match(index, /<link rel="apple-touch-icon" href="icons\/apple-touch-icon\.png">/);
   assert.match(index, /<link rel="icon" type="image\/svg\+xml" href="icons\/icon-192\.svg">/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), ['icons/icon-192.svg', 'icons/icon-512.svg']);

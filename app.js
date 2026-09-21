@@ -1,5 +1,5 @@
 import { createRepository } from './storage.js';
-import { appendTripleZero, calculatePeriodSummary, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, isValidPeriodKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey } from './logic.js';
+import { appendTripleZero, calculatePeriodSummary, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, isValidPeriodKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey, swipeTarget } from './logic.js';
 
 const repository = createRepository(localStorage);
 const loaded = repository.load();
@@ -8,6 +8,8 @@ const STATUS_COPY = { missing: 'Chưa nhập thu nhập kỳ này', ok: 'Còn tr
 let state;
 let editingExpenseId = null;
 let dirtyDialogId = null;
+let swipeRow = null;
+let swipeGesture = null;
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 
 function todayKey() { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
@@ -19,6 +21,7 @@ function selectedExpenses() { return expensesForPeriod(state.expenses, selectedB
 function effectiveTheme(choice) { return choice === 'system' ? (systemTheme.matches ? 'dark' : 'light') : choice; }
 function applyTheme(choice) { const effective = effectiveTheme(choice); document.documentElement.dataset.theme = effective; $('#themeColor').content = effective === 'dark' ? '#09130F' : '#F4F7F5'; $('#themeButton').textContent = effective === 'dark' ? '☾' : '☼'; document.querySelectorAll('input[name="theme"]').forEach(radio => { radio.checked = radio.value === choice; }); }
 function makeButton(label, className = '') { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; if (className) button.className = className; return button; }
+function closeSwipe() { if (!swipeRow) return; swipeRow.classList.remove('is-open'); swipeRow = null; }
 
 function render() {
   const bounds = selectedBounds(); const income = state.periodIncomes[state.selectedPeriodKey] ?? null; const summary = calculatePeriodSummary(income, allSelectedPeriodExpenses());
@@ -35,10 +38,10 @@ function renderCategoryGrid(selected = $('#categoryGrid').dataset.selected || st
   state.categories.forEach(category => { const button = makeButton(`${category.emoji} ${category.name}`, 'category-option'); button.setAttribute('aria-pressed', String(selected === category.id)); button.style.setProperty('--category-color', category.color); button.addEventListener('click', () => renderCategoryGrid(category.id)); grid.append(button); });
 }
 function renderExpenseList() {
-  const list = $('#expenseList'); list.replaceChildren(); const expenses = selectedExpenses();
+  closeSwipe(); const list = $('#expenseList'); list.replaceChildren(); const expenses = selectedExpenses();
   if (!expenses.length) { const empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = state.selectedCategoryId === 'all' ? 'Chưa có khoản chi trong kỳ này.' : 'Danh mục này chưa có khoản chi.'; list.append(empty); return; }
   const groups = new Map(); expenses.forEach(expense => { if (!groups.has(expense.date)) groups.set(expense.date, []); groups.get(expense.date).push(expense); });
-  for (const [date, items] of groups) { const section = document.createElement('section'); section.className = 'date-group'; const heading = document.createElement('h3'); heading.className = 'date-heading'; heading.textContent = date.split('-').reverse().join('/'); section.append(heading); items.forEach(expense => { const category = state.categories.find(item => item.id === expense.catId) ?? state.categories.find(item => item.id === 'other'); const row = document.createElement('article'); row.className = 'expense-row'; const icon = document.createElement('span'); icon.className = 'expense-icon'; icon.textContent = category?.emoji ?? '📌'; const copy = document.createElement('div'); copy.className = 'expense-copy'; const title = document.createElement('div'); title.className = 'expense-title'; title.textContent = expense.title; const cat = document.createElement('div'); cat.className = 'expense-category'; cat.textContent = category?.name ?? 'Khác'; copy.append(title, cat); const amount = document.createElement('strong'); amount.className = 'expense-amount'; amount.textContent = formatVnd(expense.amount); row.append(icon, copy, amount); const actions = document.createElement('div'); actions.className = 'expense-actions'; const edit = makeButton('Sửa'); edit.setAttribute('aria-label', `Sửa ${expense.title}`); edit.addEventListener('click', () => openExpenseEditor(expense.id)); const remove = makeButton('Xóa'); remove.className = 'danger-button'; remove.setAttribute('aria-label', `Xóa ${expense.title}`); remove.addEventListener('click', () => deleteExpense(expense.id)); actions.append(edit, remove); row.append(actions); section.append(row); }); list.append(section); }
+  for (const [date, items] of groups) { const section = document.createElement('section'); section.className = 'date-group'; const heading = document.createElement('h3'); heading.className = 'date-heading'; heading.textContent = date.split('-').reverse().join('/'); section.append(heading); items.forEach(expense => { const category = state.categories.find(item => item.id === expense.catId) ?? state.categories.find(item => item.id === 'other'); const row = document.createElement('article'); row.className = 'expense-row'; const icon = document.createElement('span'); icon.className = 'expense-icon'; icon.textContent = category?.emoji ?? '📌'; const copy = document.createElement('div'); copy.className = 'expense-copy'; const title = document.createElement('div'); title.className = 'expense-title'; title.textContent = expense.title; const cat = document.createElement('div'); cat.className = 'expense-category'; cat.textContent = category?.name ?? 'Khác'; copy.append(title, cat); const amount = document.createElement('strong'); amount.className = 'expense-amount'; amount.textContent = formatVnd(expense.amount); const track = document.createElement('div'); track.className = 'expense-track'; track.append(icon, copy, amount); row.append(track); const actions = document.createElement('div'); actions.className = 'expense-actions'; const edit = makeButton('Sửa', 'expense-edit'); edit.setAttribute('aria-label', `Sửa ${expense.title}`); edit.addEventListener('click', () => openExpenseEditor(expense.id)); const remove = makeButton('Xóa', 'expense-delete'); remove.setAttribute('aria-label', `Xóa ${expense.title}`); remove.addEventListener('click', () => deleteExpense(expense.id)); actions.append(edit, remove); row.append(actions); section.append(row); }); list.append(section); }
 }
 
 function openIncomeEditor() { const input = $('#incomeAmount'); input.value = formatMoneyInput(state.periodIncomes[state.selectedPeriodKey] ?? ''); $('#incomeAmountError').textContent = ''; $('#incomeSheet').showModal(); requestAnimationFrame(() => input.focus({ preventScroll: true })); }
@@ -64,6 +67,51 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
   $('#themeButton').addEventListener('click', () => $('#themeSheet').showModal()); $('#themeForm').addEventListener('change', event => { if (event.target.name !== 'theme') return; try { repository.saveTheme(event.target.value); state.theme = event.target.value; applyTheme(state.theme); $('#themeSheet').close(); } catch { reportStorageError(); } }); systemTheme.addEventListener('change', () => { if (state.theme === 'system') applyTheme('system'); });
   $('#previousPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, -1); state.selectedCategoryId = 'all'; render(); }); $('#nextPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, 1); state.selectedCategoryId = 'all'; render(); }); $('#periodPicker').addEventListener('click', () => { $('#cycleStartDay').value = state.cycleStartDay; $('#periodSettingsSheet').showModal(); }); $('#incomeButton').addEventListener('click', openIncomeEditor); $('#incomeForm').addEventListener('submit', saveIncome); $('#addExpense').addEventListener('click', () => openExpenseEditor()); $('#expenseForm').addEventListener('submit', saveExpense); $('#manageCategories').addEventListener('click', () => { renderCategoryManager(); $('#categorySheet').showModal(); }); $('#addCategoryButton').addEventListener('click', () => openCategoryEditor()); $('#categoryForm').addEventListener('submit', saveCategory); $('#periodSettingsForm').addEventListener('submit', saveCycleStartDay);
   document.addEventListener('click', event => { const button = event.target.closest('[data-triple-zero]'); if (!button) return; const input = document.getElementById(button.dataset.tripleZero); const digits = appendTripleZero(input.value); if (digits) { input.value = formatMoneyInput(digits); input.focus(); } }); document.addEventListener('input', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id)) return; const value = formatMoneyInput(event.target.value); event.target.value = value; event.target.setSelectionRange(value.length, value.length); dirtyDialogId = event.target.closest('dialog')?.id ?? dirtyDialogId; }); document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { const dialog = document.getElementById(button.dataset.close); if (dirtyDialogId === dialog.id && !confirm('Bỏ các thay đổi chưa lưu?')) return; dialog.close(); })); document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => { dirtyDialogId = null; }));
+  let swipeEndedAt = 0;
+  const endSwipe = () => {
+    const gesture = swipeGesture; swipeGesture = null;
+    if (!gesture?.dragging) return;
+    swipeEndedAt = performance.now(); // the click some browsers fire after a drag must not close the row it just opened
+    gesture.track.classList.remove('is-dragging');
+    void gesture.track.offsetWidth; // let the resting transition resume from where the finger left off
+    gesture.track.style.transform = '';
+    const open = swipeTarget(gesture.offset, gesture.velocity) === 'open';
+    gesture.row.classList.toggle('is-open', open);
+    swipeRow = open ? gesture.row : null;
+  };
+  $('#expenseList').addEventListener('pointerdown', event => {
+    if (event.button) return;
+    const track = event.target.closest('.expense-track');
+    if (!track) return;
+    swipeGesture = { track, row: track.closest('.expense-row'), limit: 0, base: 0, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastTime: event.timeStamp, offset: 0, velocity: 0, dragging: false };
+  });
+  $('#expenseList').addEventListener('pointermove', event => {
+    const gesture = swipeGesture;
+    if (!gesture) return;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.dragging) {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+      if (Math.abs(deltaY) >= Math.abs(deltaX)) { swipeGesture = null; return; }
+      gesture.limit = gesture.row.querySelector('.expense-actions').offsetWidth;
+      gesture.base = gesture.row.classList.contains('is-open') ? -gesture.limit : 0;
+      closeSwipe();
+      gesture.track.setPointerCapture(event.pointerId);
+      gesture.dragging = true;
+      gesture.track.classList.add('is-dragging');
+    }
+    const elapsed = event.timeStamp - gesture.lastTime;
+    if (elapsed > 0) { gesture.velocity = (event.clientX - gesture.lastX) / elapsed; gesture.lastX = event.clientX; gesture.lastTime = event.timeStamp; }
+    gesture.offset = Math.max(-gesture.limit, Math.min(0, gesture.base + deltaX));
+    gesture.track.style.transform = `translateX(${gesture.offset}px)`;
+  });
+  $('#expenseList').addEventListener('pointerup', endSwipe);
+  $('#expenseList').addEventListener('pointercancel', endSwipe);
+  $('#expenseList').addEventListener('click', event => {
+    if (performance.now() - swipeEndedAt < 350) return;
+    if (!event.target.closest('.expense-actions')) closeSwipe();
+  });
+  window.addEventListener('scroll', closeSwipe, { passive: true });
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').then(registration => { const showUpdate = () => { $('#updateBanner').hidden = false; $('#updateBanner').onclick = () => { if (dirtyDialogId) { announce('Hãy lưu hoặc đóng biểu mẫu trước khi cập nhật.'); return; } registration.waiting?.postMessage({ type: 'SKIP_WAITING' }); }; }; if (registration.waiting) showUpdate(); registration.addEventListener('updatefound', () => { const worker = registration.installing; worker?.addEventListener('statechange', () => { if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdate(); }); }); }).catch(() => false);
   let reloading = false; navigator.serviceWorker?.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; sessionStorage.setItem('silo_selected_period', state.selectedPeriodKey); location.reload(); });

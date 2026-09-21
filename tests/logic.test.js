@@ -14,6 +14,7 @@ import {
   periodBounds,
   periodKeyForDate,
   shiftPeriodKey,
+  swipeTarget,
 } from '../logic.js';
 
 test('period starting on day 1 stays inside one month', () => {
@@ -65,6 +66,13 @@ test('period key validation rejects malformed keys', () => {
   assert.equal(isValidPeriodKey('2026-09'), true);
   assert.equal(isValidPeriodKey('2026-13'), false);
   assert.equal(isValidPeriodKey(null), false);
+});
+
+test('releasing a row drag decides reveal or spring back', () => {
+  assert.equal(swipeTarget(-60, 0), 'open');
+  assert.equal(swipeTarget(-39, 0), 'closed');
+  assert.equal(swipeTarget(-10, -1), 'open');
+  assert.equal(swipeTarget(-60, 1), 'closed');
 });
 
 test('period filter uses inclusive start and exclusive next start', () => {

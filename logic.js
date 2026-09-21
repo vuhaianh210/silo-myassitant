@@ -127,3 +127,12 @@ export function formatMoneyInput(value) {
 export function formatVnd(value) {
   return `${VND.format(value)}\u00a0₫`;
 }
+
+const SWIPE_REVEAL_PX = 40;
+const SWIPE_FLING_PX_PER_MS = 0.5;
+
+export function swipeTarget(deltaX, velocityX = 0) {
+  if (velocityX <= -SWIPE_FLING_PX_PER_MS) return 'open';
+  if (velocityX >= SWIPE_FLING_PX_PER_MS) return 'closed';
+  return deltaX <= -SWIPE_REVEAL_PX ? 'open' : 'closed';
+}

@@ -86,3 +86,11 @@ button:active:not(:disabled){transform:translateY(1px)}
 input{caret-color:var(--primary)}
 @media(min-width:600px){.sheet{width:min(calc(100% - 48px),560px);margin:auto;border-radius:20px}.sheet.wide-sheet{width:min(calc(100% - 48px),680px)}}
 @media(max-width:480px){.summary{padding:20px}.sheet{padding:18px 16px calc(18px + var(--safe-bottom))}.confirm-dialog{padding:20px}}
+.income-current{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface-muted)}
+.income-current p{margin:0;color:var(--muted);font-size:.85rem}
+.income-current strong{display:block;margin-top:4px;color:var(--text);font-size:.9375rem;font-variant-numeric:tabular-nums}
+.income-current button,.income-history-row{min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--primary);font-size:.875rem;font-weight:700}
+.income-history{display:grid;gap:8px;margin-top:10px}
+.income-history-row{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left}
+.income-history-row strong{color:var(--text);font-variant-numeric:tabular-nums}
+#incomeHistoryTitle{margin:20px 0 0;font-size:1rem}

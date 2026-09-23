@@ -1,50 +1,46 @@
-# Income management menu — design
+# Income entries per period — design
 
 Status: **approved direction**, 2026-09-23.
 
 ## Problem
 
-The `Thu nhập` button currently opens an amount form directly. The owner wants a management menu
-with the current period's total and income history.
-
-## Existing behavior and data
-
-`storage.js` stores one positive VND total per period in `silo_period_incomes`, keyed by `YYYY-MM`.
-`savePeriodIncome(periodKey, amount)` already supports saving an amount for any period. The app has
-no separate income-source records.
+The income manager currently stores one total per period. The owner wants to record several
+income items in a period, such as salary, bonus, and side income, and have Silo calculate their
+total automatically.
 
 ## Approved interface
 
-Tapping `Thu nhập` opens a `Quản lý thu nhập` bottom sheet:
+Tapping `Thu nhập` opens the `Quản lý thu nhập` sheet.
 
-* The first section shows the income for the period currently selected on the dashboard. It has an
-  `Sửa thu nhập` action, or `Nhập thu nhập` if the period has no saved total. This opens the existing
-  amount editor prefilled with that period's value.
-* `Lịch sử thu nhập` lists every other period with a saved amount, newest period first. Each row
-  shows its period range and total. Tapping a row opens the same amount editor for that period.
-* Saving a historical amount updates only that period's `YYYY-MM` entry. It does not change the
-  period selected on the dashboard. Saving the selected period refreshes the summary immediately.
-* If there are no other saved periods, show `Chưa có lịch sử thu nhập.`.
+* The selected dashboard period opens first, showing its calculated total and named income items.
+  The user can add, edit, or delete an item. Deletion asks for confirmation.
+* Each item has a Vietnamese name and a positive VND amount. Names are required and limited to
+  80 characters. The amount editor keeps its existing numeric formatting and validation.
+* `Lịch sử thu nhập` lists the totals for other periods, newest first. Tapping one opens that
+  period's items inside the same sheet. A back action returns to the dashboard-selected period.
+* Editing or adding an item in a historical period only changes that period. It never changes the
+  dashboard's selected period. The dashboard total and remaining amount refresh after saving.
+* A period with no items has no total and keeps the existing missing-income summary state.
 
-The sheet uses Silo's existing sheet style, Vietnamese copy, safe-area spacing, and 44px minimum
-touch targets. The amount editor retains its validation and unsaved-change handling.
+## Data and migration
 
-## Data flow and constraints
+`silo_period_incomes` remains the local storage key. Its old shape is a map from `YYYY-MM` to one
+positive integer. The new shape maps each period to an array of `{ id, title, amount }` entries.
+On load, each old amount becomes one entry titled `Thu nhập`; a successful single-key write
+persists the migration. If that write fails, the original value remains intact and the app reports
+the storage error. Totals are derived from entry amounts and must remain positive safe integers.
 
-The manager reads `state.periodIncomes` and sorts its keys descending. It derives labels with the
-existing period-boundary logic and current cycle settings. The editor receives an explicit target
-period key rather than assuming `state.selectedPeriodKey`; saving calls the existing
-`savePeriodIncome` path. The storage schema stays unchanged, so existing local income data requires
-no migration.
+The existing cycle-setting migration still shifts period keys before normalizing old totals, so
+legacy values move to the correct periods. No new storage key or dependency is introduced.
 
 ## Out of scope
 
-* Multiple income sources within one period.
-* Deleting income history, importing/exporting income, or changing period settings.
+Income dates inside a period, recurring income, income categories, exports, and changes to expense
+data are excluded.
 
 ## Validation
 
-Confirm that opening the manager does not alter stored data; current and historical edits save to
-their own period keys; historical edits leave the dashboard's selected period unchanged; and the
-manager reflects saved changes when it remains open. Confirm the sheet is usable on iPhone in light
-and dark themes.
+Check that old totals become one `Thu nhập` item and preserve their total; adding, editing, and
+deleting items updates the period total; history opens the chosen period without changing the
+dashboard selection; empty periods retain the missing-income state; and light/dark sheets retain
+44px touch targets and safe-area spacing.

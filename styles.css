@@ -94,3 +94,12 @@ input{caret-color:var(--primary)}
 .income-history-row{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left}
 .income-history-row strong{color:var(--text);font-variant-numeric:tabular-nums}
 #incomeHistoryTitle{margin:20px 0 0;font-size:1rem}
+#incomeBackButton{margin:0 0 10px;padding:0;color:var(--primary);font-weight:700}
+.income-entry-list{display:grid;margin-top:8px}
+.income-entry-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.income-entry-copy{display:grid;min-width:0;gap:4px}
+.income-entry-copy strong{overflow-wrap:anywhere;font-size:.95rem}
+.income-entry-copy span{color:var(--primary);font-size:.875rem;font-weight:750;font-variant-numeric:tabular-nums}
+.income-entry-actions{display:flex;gap:6px}
+.income-entry-actions button{min-width:44px;padding-inline:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:.8rem;font-weight:700}
+.income-entry-actions button:last-child{color:var(--danger)}

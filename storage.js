@@ -36,8 +36,23 @@ function validExpense(item) {
 function validCategory(item) {
   return item && typeof item.id === 'string' && item.id && typeof item.name === 'string' && item.name.trim() && typeof item.emoji === 'string' && item.emoji && /^#[0-9A-Fa-f]{6}$/.test(item.color);
 }
+function validIncomeEntry(entry) { return entry && typeof entry.id === 'string' && entry.id.trim() && typeof entry.title === 'string' && entry.title === entry.title.trim() && entry.title.length > 0 && entry.title.length <= 80 && Number.isSafeInteger(entry.amount) && entry.amount > 0; }
+function validIncomeEntries(entries) {
+  if (!Array.isArray(entries) || !entries.length || !entries.every(validIncomeEntry) || new Set(entries.map(entry => entry.id)).size !== entries.length) return false;
+  return Number.isSafeInteger(entries.reduce((sum, entry) => sum + entry.amount, 0));
+}
 function validIncomes(value) {
-  return value && !Array.isArray(value) && typeof value === 'object' && Object.entries(value).every(([key, amount]) => isValidPeriodKey(key) && Number.isSafeInteger(amount) && amount > 0);
+  return value && !Array.isArray(value) && typeof value === 'object' && Object.entries(value).every(([key, income]) => isValidPeriodKey(key) && (Number.isSafeInteger(income) && income > 0 || validIncomeEntries(income)));
+}
+function normalizeIncomeEntries(incomes) {
+  let migrated = false;
+  const periodIncomeEntries = Object.fromEntries(Object.entries(incomes).map(([periodKey, income]) => {
+    if (Array.isArray(income)) return [periodKey, income.map(entry => ({ ...entry }))];
+    migrated = true;
+    return [periodKey, [{ id: `legacy-${periodKey}`, title: 'Thu nhập', amount: income }]];
+  }));
+  const periodIncomes = Object.fromEntries(Object.entries(periodIncomeEntries).map(([periodKey, entries]) => [periodKey, entries.reduce((sum, entry) => sum + entry.amount, 0)]));
+  return { periodIncomeEntries, periodIncomes, migrated };
 }
 function migrateCategories(categories) {
   const next = categories.map(category => ({ ...category }));
@@ -107,16 +122,37 @@ export function createRepository(storage) {
     if (!validIncomes(incomesResult.value)) return { ok: false, code: 'MALFORMED_DATA', key: KEYS.incomes };
     const cycle = migrateCycleSettings(incomesResult.value);
     if (!cycle.ok) return cycle;
+    const incomes = normalizeIncomeEntries(cycle.incomes);
+    if (incomes.migrated) {
+      try { write(KEYS.incomes, incomes.periodIncomeEntries); }
+      catch { return { ok: false, code: 'STORAGE_WRITE_FAILED', key: KEYS.incomes }; }
+    }
     const rawEndDay = storage.getItem(KEYS.endDay);
     const endDay = rawEndDay === null ? MAX_DAY : Number(rawEndDay);
     const anchor = storage.getItem(KEYS.anchor);
-    current = { expenses: structuredClone(expensesResult.value), categories: migrateCategories(categoriesResult.value), periodIncomes: cycle.incomes, cycleEndDay: Number.isInteger(endDay) && endDay >= 1 && endDay <= MAX_DAY ? endDay : MAX_DAY, anchor: isValidDateKey(anchor) ? anchor : null, theme: THEMES.has(storage.getItem(KEYS.theme)) ? storage.getItem(KEYS.theme) : 'system', lastCategory: storage.getItem(KEYS.lastCategory) || 'food' };
+    current = { expenses: structuredClone(expensesResult.value), categories: migrateCategories(categoriesResult.value), periodIncomeEntries: incomes.periodIncomeEntries, periodIncomes: incomes.periodIncomes, cycleEndDay: Number.isInteger(endDay) && endDay >= 1 && endDay <= MAX_DAY ? endDay : MAX_DAY, anchor: isValidDateKey(anchor) ? anchor : null, theme: THEMES.has(storage.getItem(KEYS.theme)) ? storage.getItem(KEYS.theme) : 'system', lastCategory: storage.getItem(KEYS.lastCategory) || 'food' };
     write(KEYS.categories, current.categories);
     return { ok: true, state: structuredClone(current) };
   }
   function saveExpenses(expenses) { requireLoaded(); if (!Array.isArray(expenses) || !expenses.every(validExpense)) throw new TypeError('Invalid expenses'); const next = structuredClone(expenses); write(KEYS.expenses, next); current.expenses = next; }
   function saveCategories(categories) { requireLoaded(); if (!Array.isArray(categories) || !categories.every(validCategory)) throw new TypeError('Invalid categories'); if (!categories.some(category => category.id === 'other')) throw new TypeError('Category other is required'); const next = structuredClone(categories); write(KEYS.categories, next); current.categories = next; }
-  function savePeriodIncome(periodKey, amount) { requireLoaded(); if (!isValidPeriodKey(periodKey) || !Number.isSafeInteger(amount) || amount <= 0) throw new TypeError('Income must be a positive safe integer'); const next = { ...current.periodIncomes, [periodKey]: amount }; write(KEYS.incomes, next); current.periodIncomes = next; }
+  function savePeriodIncomeEntries(periodKey, entries) {
+    requireLoaded();
+    if (!isValidPeriodKey(periodKey) || !Array.isArray(entries) || (entries.length && !validIncomeEntries(entries))) throw new TypeError('Invalid income entries');
+    const nextEntries = { ...current.periodIncomeEntries };
+    const nextIncomes = { ...current.periodIncomes };
+    const total = entries.length ? entries.reduce((sum, entry) => sum + entry.amount, 0) : null;
+    if (entries.length) { nextEntries[periodKey] = structuredClone(entries); nextIncomes[periodKey] = total; }
+    else { delete nextEntries[periodKey]; delete nextIncomes[periodKey]; }
+    write(KEYS.incomes, nextEntries);
+    current.periodIncomeEntries = nextEntries;
+    current.periodIncomes = nextIncomes;
+    return total;
+  }
+  function savePeriodIncome(periodKey, amount) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) throw new TypeError('Income must be a positive safe integer');
+    return savePeriodIncomeEntries(periodKey, [{ id: `legacy-${periodKey}`, title: 'Thu nhập', amount }]);
+  }
   function saveCycleEndDay(day) { requireLoaded(); if (!Number.isInteger(day) || day < 1 || day > MAX_DAY) throw new TypeError('End day must be 1 through 31'); write(KEYS.endDay, String(day)); current.cycleEndDay = day; }
   function saveAnchor(dateKey) { requireLoaded(); if (dateKey !== null && !isValidDateKey(dateKey)) throw new TypeError('Invalid anchor'); if (dateKey === null) storage.removeItem(KEYS.anchor); else write(KEYS.anchor, dateKey); current.anchor = dateKey; }
   function saveTheme(theme) { requireLoaded(); if (!THEMES.has(theme)) throw new TypeError('Invalid theme'); write(KEYS.theme, theme); current.theme = theme; }
@@ -134,5 +170,5 @@ export function createRepository(storage) {
     current.expenses = nextExpenses; current.categories = nextCategories;
     return structuredClone({ expenses: nextExpenses, categories: nextCategories });
   }
-  return { load, saveExpenses, saveCategories, savePeriodIncome, saveCycleEndDay, saveAnchor, saveTheme, saveLastCategory, deleteCategory };
+  return { load, saveExpenses, saveCategories, savePeriodIncome, savePeriodIncomeEntries, saveCycleEndDay, saveAnchor, saveTheme, saveLastCategory, deleteCategory };
 }

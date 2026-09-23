@@ -9,7 +9,6 @@ let state;
 let editingExpenseId = null;
 let editingIncomePeriodKey = null;
 let editingIncomeEntryId = null;
-let viewingIncomePeriodKey = null;
 let dirtyDialogId = null;
 let swipeRow = null;
 let swipeGesture = null;
@@ -95,18 +94,17 @@ function updatePeriodPreview() {
   preview.textContent = `Kỳ này: ${current.rangeLabel} · Kỳ sau: ${next.rangeLabel}`;
 }
 function renderIncomeManager() {
-  const key = viewingIncomePeriodKey ?? state.selectedPeriodKey;
-  const isCurrentPeriod = key === state.selectedPeriodKey;
+  const key = state.selectedPeriodKey;
   const current = state.periodIncomes[key] ?? null;
   const range = periodBounds(key, state.cycleEndDay, state.anchor).rangeLabel;
   const currentRegion = $('#incomeCurrent');
   currentRegion.replaceChildren();
   const copy = document.createElement('div');
-  const label = document.createElement('p'); label.textContent = `${isCurrentPeriod ? 'Kỳ đang xem' : 'Thu nhập kỳ'} · ${range}`;
+  const label = document.createElement('p'); label.textContent = `Kỳ đang xem · ${range}`;
   const amount = document.createElement('strong'); amount.textContent = current === null ? 'Chưa nhập thu nhập' : formatVnd(current);
   copy.append(label, amount);
-  const add = makeButton('Thêm khoản'); add.setAttribute('aria-label', 'Thêm khoản thu nhập');
-  add.addEventListener('click', () => openIncomeEditor(key));
+  const add = makeButton('Thêm thu nhập'); add.setAttribute('aria-label', 'Thêm thu nhập');
+  add.addEventListener('click', () => openIncomeEditor());
   currentRegion.append(copy, add);
 
   const entries = state.periodIncomeEntries[key] ?? [];
@@ -119,31 +117,16 @@ function renderIncomeManager() {
     const value = document.createElement('span'); value.textContent = formatVnd(entry.amount);
     details.append(title, value);
     const actions = document.createElement('div'); actions.className = 'income-entry-actions';
-    const edit = makeButton('Sửa'); edit.setAttribute('aria-label', `Sửa khoản ${entry.title}`); edit.addEventListener('click', () => openIncomeEditor(key, entry));
+    const edit = makeButton('Sửa'); edit.setAttribute('aria-label', `Sửa khoản ${entry.title}`); edit.addEventListener('click', () => openIncomeEditor(entry));
     const remove = makeButton('Xóa'); remove.setAttribute('aria-label', `Xóa khoản ${entry.title}`); remove.addEventListener('click', () => deleteIncomeEntry(key, entry.id));
     actions.append(edit, remove); row.append(details, actions); entryList.append(row);
   });
 
-  $('#incomeBackButton').hidden = isCurrentPeriod;
-  $('#incomeHistorySection').hidden = !isCurrentPeriod;
-  const history = $('#incomeHistory'); history.replaceChildren();
-  const historyEntries = Object.entries(state.periodIncomes).filter(([periodKey]) => periodKey !== key).sort(([left], [right]) => right.localeCompare(left));
-  $('#incomeHistoryEmpty').hidden = historyEntries.length > 0;
-  historyEntries.forEach(([periodKey, value]) => {
-    const periodRange = periodBounds(periodKey, state.cycleEndDay, state.anchor).rangeLabel;
-    const row = makeButton('', 'income-history-row');
-    const period = document.createElement('span'); period.textContent = periodRange;
-    const income = document.createElement('strong'); income.textContent = formatVnd(value);
-    row.setAttribute('aria-label', `Xem thu nhập kỳ ${periodRange}, ${formatVnd(value)}`);
-    row.append(period, income);
-    row.addEventListener('click', () => { viewingIncomePeriodKey = periodKey; renderIncomeManager(); });
-    history.append(row);
-  });
 }
-function openIncomeManager() { viewingIncomePeriodKey = null; renderIncomeManager(); $('#incomeManagerSheet').showModal(); }
-function openIncomeEditor(periodKey = state.selectedPeriodKey, entry = null) {
-  editingIncomePeriodKey = periodKey; editingIncomeEntryId = entry?.id ?? null;
-  $('#incomeTitle').textContent = entry ? 'Sửa khoản thu nhập' : 'Thêm khoản thu nhập';
+function openIncomeManager() { renderIncomeManager(); $('#incomeManagerSheet').showModal(); }
+function openIncomeEditor(entry = null) {
+  editingIncomePeriodKey = state.selectedPeriodKey; editingIncomeEntryId = entry?.id ?? null;
+  $('#incomeTitle').textContent = entry ? 'Sửa khoản thu nhập' : 'Thêm thu nhập';
   $('#incomeName').value = entry?.title ?? ''; $('#incomeAmount').value = formatMoneyInput(entry?.amount ?? '');
   $('#incomeNameError').textContent = ''; $('#incomeAmountError').textContent = '';
   $('#incomeSheet').showModal(); $('#incomeAmount').focus({ preventScroll: true });
@@ -159,7 +142,7 @@ function saveIncome(event) {
   const title = $('#incomeName').value.trim(); const amount = parsePositiveAmount($('#incomeAmount').value);
   if (!title || title.length > 80) { $('#incomeNameError').textContent = 'Tên từ 1 đến 80 ký tự.'; $('#incomeName').focus(); return; }
   if (amount === null) { $('#incomeAmountError').textContent = 'Số tiền phải lớn hơn 0.'; $('#incomeAmount').focus(); return; }
-  const periodKey = editingIncomePeriodKey ?? viewingIncomePeriodKey ?? state.selectedPeriodKey;
+  const periodKey = editingIncomePeriodKey ?? state.selectedPeriodKey;
   const wasEditing = editingIncomeEntryId !== null;
   const entries = state.periodIncomeEntries[periodKey] ?? [];
   if (editingIncomeEntryId && !entries.some(entry => entry.id === editingIncomeEntryId)) { $('#incomeNameError').textContent = 'Khoản thu nhập không còn tồn tại.'; return; }
@@ -222,7 +205,7 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
   if (savedPeriod) sessionStorage.removeItem('silo_selected_period');
   state = { ...loaded.state, selectedPeriodKey, selectedCategoryId: 'all' }; $('#app').inert = false; applyTheme(state.theme);
   $('#themeButton').addEventListener('click', () => $('#themeSheet').showModal()); $('#themeForm').addEventListener('change', event => { if (event.target.name !== 'theme') return; try { repository.saveTheme(event.target.value); state.theme = event.target.value; applyTheme(state.theme); $('#themeSheet').close(); } catch { reportStorageError(); } }); systemTheme.addEventListener('change', () => { if (state.theme === 'system') applyTheme('system'); });
-  $('#previousPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, -1); state.selectedCategoryId = 'all'; render(); }); $('#nextPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, 1); state.selectedCategoryId = 'all'; render(); }); $('#periodPicker').addEventListener('click', () => { $('#cycleEndDay').value = state.cycleEndDay; $('#cycleAnchor').value = state.anchor ?? ''; $('#cycleEndDayError').textContent = ''; $('#cycleAnchorError').textContent = ''; updatePeriodPreview(); $('#periodSettingsSheet').showModal(); }); $('#incomeButton').addEventListener('click', openIncomeManager); $('#incomeBackButton').addEventListener('click', () => { viewingIncomePeriodKey = null; renderIncomeManager(); }); $('#incomeForm').addEventListener('submit', saveIncome); $('#addExpense').addEventListener('click', () => openExpenseEditor()); $('#expenseForm').addEventListener('submit', saveExpense); $('#manageCategories').addEventListener('click', () => { renderCategoryManager(); $('#categorySheet').showModal(); }); $('#addCategoryButton').addEventListener('click', () => openCategoryEditor()); $('#categoryForm').addEventListener('submit', saveCategory); $('#periodSettingsForm').addEventListener('submit', saveCycleSettings); $('#periodSettingsForm').addEventListener('input', updatePeriodPreview);
+  $('#previousPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, -1); state.selectedCategoryId = 'all'; render(); }); $('#nextPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, 1); state.selectedCategoryId = 'all'; render(); }); $('#periodPicker').addEventListener('click', () => { $('#cycleEndDay').value = state.cycleEndDay; $('#cycleAnchor').value = state.anchor ?? ''; $('#cycleEndDayError').textContent = ''; $('#cycleAnchorError').textContent = ''; updatePeriodPreview(); $('#periodSettingsSheet').showModal(); }); $('#incomeButton').addEventListener('click', openIncomeManager); $('#incomeForm').addEventListener('submit', saveIncome); $('#addExpense').addEventListener('click', () => openExpenseEditor()); $('#expenseForm').addEventListener('submit', saveExpense); $('#manageCategories').addEventListener('click', () => { renderCategoryManager(); $('#categorySheet').showModal(); }); $('#addCategoryButton').addEventListener('click', () => openCategoryEditor()); $('#categoryForm').addEventListener('submit', saveCategory); $('#periodSettingsForm').addEventListener('submit', saveCycleSettings); $('#periodSettingsForm').addEventListener('input', updatePeriodPreview);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset); window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
   document.addEventListener('focusin', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id) || !navigator.maxTouchPoints) return; if (suppressSuggestionsOnFocus === event.target) suppressSuggestionsOnFocus = null; else updateAmountSuggestions(event.target); updateKeyboardInset(); });
   document.addEventListener('focusout', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id)) return; const dialog = event.target.closest('dialog'); if (event.relatedTarget instanceof Element && event.relatedTarget.closest('.money-accessory')) { updateKeyboardInset(); return; } if (suppressSuggestionsOnFocus === event.target) suppressSuggestionsOnFocus = null; window.setTimeout(() => { const active = document.activeElement; if (!dialog?.contains(active) || (!['expenseAmount', 'incomeAmount'].includes(active.id) && !active.closest('.money-accessory'))) dialog?.querySelector('.money-accessory')?.setAttribute('hidden', ''); updateKeyboardInset(); }, 150); });

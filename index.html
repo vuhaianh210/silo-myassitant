@@ -7,7 +7,7 @@
   <title>Silo — Quản lý chi tiêu</title>
 </head>
 <body>
-  <header class="app-header"><div><p class="eyebrow">Tài chính cá nhân</p><h1>Silo</h1></div><button id="themeButton" class="icon-button" type="button" aria-label="Đổi giao diện" aria-haspopup="dialog">☼</button></header>
+  <header class="app-header"><div class="app-brand"><h1>Silo</h1><p class="app-subtitle">Tài chính cá nhân</p></div><button id="themeButton" class="icon-button" type="button" aria-label="Đổi giao diện" aria-haspopup="dialog">☼</button></header>
   <main id="app" inert>
     <section class="period-nav" aria-label="Chọn kỳ chi tiêu"><button id="previousPeriod" class="icon-button" type="button" aria-label="Kỳ trước">‹</button><button id="periodPicker" class="period-title" type="button" aria-label="Cài đặt kỳ chi tiêu"><strong id="periodRange">—</strong><span id="periodEndDay">Kết thúc ngày —</span></button><button id="nextPeriod" class="icon-button" type="button" aria-label="Kỳ sau">›</button></section>
     <section id="summary" class="summary" aria-labelledby="remainingLabel"><p id="remainingLabel" class="summary-label">Còn lại</p><p id="remainingAmount" class="summary-amount">—</p><p id="periodStatus" class="status-text">Chưa nhập thu nhập kỳ này</p><div class="progress" role="progressbar" aria-label="Mức sử dụng thu nhập" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progressFill"></span></div><dl class="summary-details"><div><dt>Thu nhập</dt><dd><button id="incomeButton" type="button">Nhập thu nhập</button></dd></div><div><dt>Đã dùng</dt><dd id="spentAmount">0&nbsp;₫</dd></div></dl></section>

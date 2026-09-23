@@ -2,3 +2,4 @@
 @media (max-width:359px){body{padding-inline:12px}.summary{padding:16px}.summary-details{grid-template-columns:1fr}.category-grid{grid-template-columns:1fr}}
 @media (prefers-contrast:more){:root{--border:#687a72}[data-theme="dark"]{--border:#b6c8c0}.category-option[aria-pressed="true"]{outline:2px solid currentColor}}
 .before-anchor{margin-top:22px}.before-anchor>summary{padding:14px 0;color:var(--muted);font-size:.85rem;font-weight:750;cursor:pointer}
+.fab{z-index:10}

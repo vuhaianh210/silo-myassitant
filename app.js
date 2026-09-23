@@ -1,5 +1,5 @@
 import { createRepository } from './storage.js';
-import { calculatePeriodSummary, expensesBeforeAnchor, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, isValidPeriodKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey, swipeTarget } from './logic.js';
+import { appendTripleZero, calculatePeriodSummary, expensesBeforeAnchor, expensesForPeriod, formatMoneyInput, formatVnd, isValidDateKey, isValidPeriodKey, parsePositiveAmount, periodBounds, periodKeyForDate, shiftPeriodKey, swipeTarget } from './logic.js';
 
 const repository = createRepository(localStorage);
 const loaded = repository.load();
@@ -22,6 +22,7 @@ function effectiveTheme(choice) { return choice === 'system' ? (systemTheme.matc
 function applyTheme(choice) { const effective = effectiveTheme(choice); document.documentElement.dataset.theme = effective; $('#themeColor').content = effective === 'dark' ? '#09130F' : '#F4F7F5'; $('#themeButton').textContent = effective === 'dark' ? '☾' : '☼'; document.querySelectorAll('input[name="theme"]').forEach(radio => { radio.checked = radio.value === choice; }); }
 function makeButton(label, className = '') { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; if (className) button.className = className; return button; }
 function closeSwipe() { if (!swipeRow) return; swipeRow.classList.remove('is-open'); swipeRow = null; }
+function updateKeyboardInset() { const viewport = window.visualViewport; const inset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0; document.documentElement.style.setProperty('--keyboard-inset', `${inset}px`); }
 
 function render() {
   const bounds = selectedBounds(); const income = state.periodIncomes[state.selectedPeriodKey] ?? null; const summary = calculatePeriodSummary(income, allSelectedPeriodExpenses());
@@ -128,7 +129,11 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
   state = { ...loaded.state, selectedPeriodKey, selectedCategoryId: 'all' }; $('#app').inert = false; applyTheme(state.theme);
   $('#themeButton').addEventListener('click', () => $('#themeSheet').showModal()); $('#themeForm').addEventListener('change', event => { if (event.target.name !== 'theme') return; try { repository.saveTheme(event.target.value); state.theme = event.target.value; applyTheme(state.theme); $('#themeSheet').close(); } catch { reportStorageError(); } }); systemTheme.addEventListener('change', () => { if (state.theme === 'system') applyTheme('system'); });
   $('#previousPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, -1); state.selectedCategoryId = 'all'; render(); }); $('#nextPeriod').addEventListener('click', () => { state.selectedPeriodKey = shiftPeriodKey(state.selectedPeriodKey, 1); state.selectedCategoryId = 'all'; render(); }); $('#periodPicker').addEventListener('click', () => { $('#cycleEndDay').value = state.cycleEndDay; $('#cycleAnchor').value = state.anchor ?? ''; $('#cycleEndDayError').textContent = ''; $('#cycleAnchorError').textContent = ''; updatePeriodPreview(); $('#periodSettingsSheet').showModal(); }); $('#incomeButton').addEventListener('click', openIncomeEditor); $('#incomeForm').addEventListener('submit', saveIncome); $('#addExpense').addEventListener('click', () => openExpenseEditor()); $('#expenseForm').addEventListener('submit', saveExpense); $('#manageCategories').addEventListener('click', () => { renderCategoryManager(); $('#categorySheet').showModal(); }); $('#addCategoryButton').addEventListener('click', () => openCategoryEditor()); $('#categoryForm').addEventListener('submit', saveCategory); $('#periodSettingsForm').addEventListener('submit', saveCycleSettings); $('#periodSettingsForm').addEventListener('input', updatePeriodPreview);
-  document.addEventListener('input', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id)) return; const value = formatMoneyInput(event.target.value); event.target.value = value; event.target.setSelectionRange(value.length, value.length); dirtyDialogId = event.target.closest('dialog')?.id ?? dirtyDialogId; }); document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { const dialog = document.getElementById(button.dataset.close); if (dirtyDialogId === dialog.id && !confirm('Bỏ các thay đổi chưa lưu?')) return; dialog.close(); })); document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => { dirtyDialogId = null; }));
+  window.visualViewport?.addEventListener('resize', updateKeyboardInset); window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
+  document.addEventListener('focusin', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id) || !navigator.maxTouchPoints) return; event.target.closest('dialog')?.querySelector('.money-accessory')?.removeAttribute('hidden'); updateKeyboardInset(); });
+  document.addEventListener('focusout', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id)) return; const dialog = event.target.closest('dialog'); window.setTimeout(() => { const active = document.activeElement; if (!dialog?.contains(active) || (!['expenseAmount', 'incomeAmount'].includes(active.id) && !active.closest('.money-accessory'))) dialog?.querySelector('.money-accessory')?.setAttribute('hidden', ''); updateKeyboardInset(); }, 150); });
+  document.addEventListener('click', event => { const button = event.target.closest('[data-triple-zero]'); if (!button) return; const input = document.getElementById(button.dataset.tripleZero); const digits = appendTripleZero(input.value); if (digits) { input.value = formatMoneyInput(digits); input.dispatchEvent(new Event('input', { bubbles: true })); input.focus({ preventScroll: true }); } });
+  document.addEventListener('input', event => { if (!['expenseAmount', 'incomeAmount'].includes(event.target.id)) return; const value = formatMoneyInput(event.target.value); event.target.value = value; event.target.setSelectionRange(value.length, value.length); dirtyDialogId = event.target.closest('dialog')?.id ?? dirtyDialogId; }); document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { const dialog = document.getElementById(button.dataset.close); if (dirtyDialogId === dialog.id && !confirm('Bỏ các thay đổi chưa lưu?')) return; dialog.close(); })); document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => { dirtyDialogId = null; dialog.querySelector('.money-accessory')?.setAttribute('hidden', ''); }));
   let swipeEndedAt = 0;
   const endSwipe = () => {
     const gesture = swipeGesture; swipeGesture = null;
@@ -164,7 +169,9 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
     }
     const elapsed = event.timeStamp - gesture.lastTime;
     if (elapsed > 0) { gesture.velocity = (event.clientX - gesture.lastX) / elapsed; gesture.lastX = event.clientX; gesture.lastTime = event.timeStamp; }
-    gesture.offset = Math.max(-gesture.limit, Math.min(0, gesture.base + deltaX));
+    const scale = window.devicePixelRatio || 1;
+    const offset = Math.max(-gesture.limit, Math.min(0, gesture.base + deltaX));
+    gesture.offset = Math.max(-gesture.limit, Math.min(0, Math.round(offset * scale) / scale));
     gesture.track.style.transform = `translateX(${gesture.offset}px)`;
   });
   $('#expenseList').addEventListener('pointerup', endSwipe);

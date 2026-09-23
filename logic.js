@@ -116,11 +116,6 @@ export function normalizeMoneyDigits(value) {
   return digits.replace(/^0+(?=\d)/, '');
 }
 
-export function appendTripleZero(value) {
-  const digits = normalizeMoneyDigits(value);
-  return digits && digits !== '0' ? `${digits}000` : '';
-}
-
 export function parsePositiveAmount(value) {
   const digits = normalizeMoneyDigits(value);
   const amount = Number(digits);

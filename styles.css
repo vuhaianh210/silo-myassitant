@@ -77,9 +77,10 @@ button:active:not(:disabled){transform:translateY(1px)}
 .confirm-dialog .button-row{gap:8px}
 .confirm-dialog .button-row button{flex:1;min-height:48px;padding-inline:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);color:var(--text)}
 .confirm-dialog .button-row .danger-button{margin:0;border:0;background:var(--danger);color:var(--danger-ink)}
-.money-accessory{position:fixed;inset-inline:0;bottom:var(--keyboard-inset,0px);z-index:3;display:flex;justify-content:flex-end;padding:8px 16px;border-top:1px solid var(--border);background:var(--surface-muted)}
+.money-accessory{position:fixed;inset-inline:0;bottom:var(--keyboard-inset,0px);z-index:3;display:flex;justify-content:center;padding:8px 12px;border-top:1px solid var(--border);background:var(--surface-muted)}
 .money-accessory[hidden]{display:none}
-.money-accessory button{min-width:72px;min-height:44px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--primary);font-weight:750}
+.money-suggestions{display:flex;gap:8px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.money-suggestions button{min-width:0;min-height:44px;flex:0 0 auto;padding-inline:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--primary);font-size:.875rem;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
 ::selection{background:var(--primary);color:var(--primary-ink)}
 input{caret-color:var(--primary)}
 @media(min-width:600px){.sheet{width:min(calc(100% - 48px),560px);margin:auto;border-radius:20px}.sheet.wide-sheet{width:min(calc(100% - 48px),680px)}}

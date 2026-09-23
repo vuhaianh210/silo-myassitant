@@ -21,8 +21,6 @@ test('page keeps zoom available and loads external app assets', () => {
 test('forms expose numeric money entry and named errors', () => {
   assert.match(index, /id="expenseAmount"[^>]*inputmode="numeric"/);
   assert.match(index, /id="incomeAmount"[^>]*inputmode="numeric"/);
-  assert.match(index, /data-triple-zero="expenseAmount"/);
-  assert.match(index, /data-triple-zero="incomeAmount"/);
   assert.match(index, /id="expenseAmountError"[^>]*role="alert"/);
 });
 

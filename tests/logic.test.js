@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  appendTripleZero,
   calculatePeriodSummary,
   expensesBeforeAnchor,
   expensesForPeriod,
@@ -132,15 +131,11 @@ test('summary distinguishes missing income and exceeded income', () => {
   });
 });
 
-test('money input strips non-digits, formats VND, and appends 000', () => {
+test('money input strips non-digits and formats VND', () => {
   assert.equal(normalizeMoneyDigits(' 5.000 ₫ '), '5000');
   assert.equal(normalizeMoneyDigits('00050'), '50');
   assert.equal(formatMoneyInput('5000000'), '5.000.000');
   assert.equal(formatVnd(5_000_000), '5.000.000\u00a0₫');
-  assert.equal(appendTripleZero(''), '');
-  assert.equal(appendTripleZero('0'), '');
-  assert.equal(appendTripleZero('5'), '5000');
-  assert.equal(appendTripleZero('50.000'), '50000000');
   assert.equal(parsePositiveAmount('5.000.000'), 5_000_000);
   assert.equal(parsePositiveAmount('0'), null);
   assert.equal(parsePositiveAmount('-2'), 2);

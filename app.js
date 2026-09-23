@@ -233,11 +233,11 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
     const gesture = swipeGesture; swipeGesture = null;
     if (!gesture?.dragging) return;
     swipeEndedAt = performance.now(); // the click some browsers fire after a drag must not close the row it just opened
-    gesture.track.classList.remove('is-dragging');
-    void gesture.track.offsetWidth; // let the resting transition resume from where the finger left off
-    gesture.track.style.transform = '';
     const open = swipeTarget(gesture.offset, gesture.velocity) === 'open';
+    gesture.row.classList.remove('is-dragging');
     gesture.row.classList.toggle('is-open', open);
+    void gesture.track.offsetWidth; // let the resting transition resume from where the finger left off
+    gesture.track.style.width = '';
     swipeRow = open ? gesture.row : null;
   };
   $('#expenseList').addEventListener('pointerdown', event => {
@@ -256,17 +256,17 @@ if (!loaded.ok) { $('#storageError').hidden = false; $('#storageError').textCont
       if (Math.abs(deltaY) >= Math.abs(deltaX)) { swipeGesture = null; return; }
       gesture.limit = gesture.row.querySelector('.expense-actions').offsetWidth;
       gesture.base = gesture.row.classList.contains('is-open') ? -gesture.limit : 0;
-      closeSwipe();
+      if (swipeRow !== gesture.row) closeSwipe();
       gesture.track.setPointerCapture(event.pointerId);
       gesture.dragging = true;
-      gesture.track.classList.add('is-dragging');
+      gesture.row.classList.add('is-dragging');
     }
     const elapsed = event.timeStamp - gesture.lastTime;
     if (elapsed > 0) { gesture.velocity = (event.clientX - gesture.lastX) / elapsed; gesture.lastX = event.clientX; gesture.lastTime = event.timeStamp; }
     const scale = window.devicePixelRatio || 1;
     const offset = Math.max(-gesture.limit, Math.min(0, gesture.base + deltaX));
     gesture.offset = Math.max(-gesture.limit, Math.min(0, Math.round(offset * scale) / scale));
-    gesture.track.style.transform = `translateX(${gesture.offset}px)`;
+    gesture.track.style.width = `${gesture.row.clientWidth + gesture.offset}px`;
   });
   $('#expenseList').addEventListener('pointerup', endSwipe);
   $('#expenseList').addEventListener('pointercancel', endSwipe);

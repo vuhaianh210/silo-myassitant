@@ -31,7 +31,8 @@ button:active:not(:disabled){transform:translateY(1px)}
 .summary-details{gap:16px;padding-top:16px;border-top:1px solid var(--border)}
 .summary-details dt{font-size:.75rem;letter-spacing:.01em}
 .summary-details dd{margin-top:6px}
-.summary-details button{min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);color:var(--primary);font-size:.875rem;font-weight:700}
+.summary-details button,#spentAmount{display:inline-flex;max-width:100%;align-items:center;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);color:var(--primary);font-size:.875rem;font-weight:700}
+#spentAmount{color:var(--danger)}
 .summary-details button:hover{border-color:var(--primary);background:var(--surface)}
 .transactions{margin-top:28px}
 .section-heading h2{font-size:1.2rem;line-height:1.3;letter-spacing:-.02em}

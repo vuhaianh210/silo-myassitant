@@ -1,4 +1,4 @@
-const CACHE_NAME = 'silo-v19-atomic-shell';
+const CACHE_NAME = 'silo-v20-atomic-shell';
 const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './logic.js', './storage.js', './manifest.json', './icons/icon-192.svg', './icons/icon-512.svg', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL.map(path => new Request(new URL(path, self.registration.scope), { cache: 'reload' }))))); });

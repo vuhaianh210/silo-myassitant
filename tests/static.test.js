@@ -19,8 +19,10 @@ test('page keeps zoom available and loads external app assets', () => {
 });
 
 test('forms expose numeric money entry and named errors', () => {
-  assert.match(index, /id="expenseAmount"[^>]*inputmode="numeric"/);
-  assert.match(index, /id="incomeAmount"[^>]*inputmode="numeric"/);
+  // Money fields use the in-app keypad (.money-keypad), so the system keyboard stays hidden.
+  assert.match(index, /id="expenseAmount"[^>]*inputmode="none"/);
+  assert.match(index, /id="incomeAmount"[^>]*inputmode="none"/);
+  assert.equal(index.match(/class="money-keypad"/g).length, 2);
   assert.match(index, /id="expenseAmountError"[^>]*role="alert"/);
 });
 
